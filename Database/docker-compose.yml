@@ -1,0 +1,27 @@
+# Local MySQL for the IMP backend.
+# Start:  docker compose up -d
+# Reset:  docker compose down -v && docker compose up -d   (re-runs schema.sql)
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: imp-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: IMP
+      MYSQL_USER: imp
+      MYSQL_PASSWORD: imp
+    ports:
+      - "3307:3306"   # laptop port 3307 -> container port 3306 (leaves 3306 free for local MySQL)
+    volumes:
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - imp-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  imp-data:
