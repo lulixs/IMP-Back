@@ -1,0 +1,24 @@
+# .NET build output (recreated by `dotnet build`)
+bin/
+obj/
+
+# Per-person editor settings
+*.user
+
+# VS Code: ignore personal settings, keep the shared files
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+# Operating system clutter
+.DS_Store
+Thumbs.db
+
+# Local secrets and environment files (never commit real passwords)
+.env
+*.env
+
+# Logs
+*.log
