@@ -2,12 +2,12 @@
 -- IMP sample data (for local testing only)
 -- Run AFTER schema.sql. Safe to rerun: it clears every table first.
 --
--- Test logins (PINs are stored as bcrypt hashes):
---   Daniel Finkle  PIN 1111
---   Thomas Anos    PIN 2222
---   Maria Lopez    PIN 3333
---   Grace Kim      PIN 4444
---   Ben Carter     PIN 5555  (deactivated, sign-in should fail)
+-- Test logins (employee PINs are 6 digits, stored as bcrypt hashes):
+--   Daniel Finkle  PIN 111111
+--   Thomas Anos    PIN 222222
+--   Maria Lopez    PIN 333333
+--   Grace Kim      PIN 444444
+--   Ben Carter     PIN 555555  (deactivated, sign-in should fail)
 --   Master         master@example.com / master123
 --
 -- Dates are relative to today (CURDATE / NOW), so the alerts
@@ -28,14 +28,16 @@ TRUNCATE TABLE EMPLOYEE_ACCOUNT;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ---------- Employees ----------
+-- pin_hash is the bcrypt hash of the 6-digit PIN shown in the comment at the end of each row.
 INSERT INTO EMPLOYEE_ACCOUNT (id, name, pin_hash, is_activated, last_sign_in_at) VALUES
-(1, 'Daniel Finkle', '$2b$10$p/W41jHhjIEoNA0GFTSbfONUlcLxHDtn4hFQhdbqqJRIMreFEDrOy', TRUE,  NOW() - INTERVAL 20 MINUTE),
-(2, 'Thomas Anos',   '$2b$10$mkSXeLcH4vRJrVlW2M3YzenDY9EU7qYEAN38y/tSDLNXzabzIP56G', TRUE,  NOW() - INTERVAL 2 HOUR),
-(3, 'Maria Lopez',   '$2b$10$wWcp3xmvg2dh6z48IKdtPu8ynvLLu5uQnRxcZSMHgwkUjKx7pHdlu', TRUE,  NOW() - INTERVAL 1 DAY),
-(4, 'Grace Kim',     '$2b$10$j.EL5PR.fxHRrKhVS22iDuOdiGOG52oan6y4vBKqKz6CNELoX4Mly', TRUE,  NULL),
-(5, 'Ben Carter',    '$2b$10$M733wORFOFB1hBoL12Nbuef7w5i56jGLgsg5xE46aI30qkewAyKrO', FALSE, NOW() - INTERVAL 40 DAY);
+(1, 'Daniel Finkle', '$2b$10$zAe0rIkysQeIZRRpzPgrOew0ujDPYMrKMNxl8JVGF8ydxOmNFOcg2', TRUE,  NOW() - INTERVAL 20 MINUTE),  -- PIN 111111
+(2, 'Thomas Anos',   '$2b$10$95OWXM4VED7.dw3ig2CIXux9KpSqu2A24RFkrQJqerGZIDxbs/6Sy', TRUE,  NOW() - INTERVAL 2 HOUR),  -- PIN 222222
+(3, 'Maria Lopez',   '$2b$10$OAwFQQx2rFmrAqxhcHQz.uhDYdFmvm.yAg57OA7iPlcZtQJOmmsmi', TRUE,  NOW() - INTERVAL 1 DAY),  -- PIN 333333
+(4, 'Grace Kim',     '$2b$10$jIzALHRcNg02zuCNkPwYY.4AfzjUOJOma2V4Bz9nXmjsasxrW34KW', TRUE,  NULL),  -- PIN 444444, never signed in
+(5, 'Ben Carter',    '$2b$10$5.VzIHTfiGouhHkDG6IjDObGWDhJWH5ZURdEa4P.I0UCEyEp4C1za', FALSE, NOW() - INTERVAL 40 DAY);  -- PIN 555555, DEACTIVATED, sign-in should fail
 
 -- ---------- Master account (only one row allowed) ----------
+-- password_hash is the bcrypt hash of the master password: master123
 INSERT INTO MASTER_ACCOUNT (id, email, password_hash, two_factor_secret, alert_threshold_days) VALUES
 (1, 'master@example.com', '$2b$10$wWuAF9mkiBzflLMkUKaa8eBLKoYrMmEMY8dvC112vS./eJdluNmZq', NULL, 180);
 
