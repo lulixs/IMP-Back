@@ -4,6 +4,7 @@ This folder runs our MySQL database in Docker, so everyone gets the same databas
 
 - `docker-compose.yml` – tells Docker how to run MySQL
 - `schema.sql` – creates the `IMP` database and all tables
+- `sample_data.sql` – fills the tables with test data (local only, never on the real server)
 
 ---
 
