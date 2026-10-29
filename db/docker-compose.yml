@@ -19,7 +19,9 @@ services:
       - ./sample_data.sql:/docker-entrypoint-initdb.d/02-sample_data.sql:ro   # local test data only, never on the real server
       - imp-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
+      # TCP, not the socket: the temporary server that loads the .sql files has no networking,
+      # so this only passes once the tables and sample data are in and the real server is up.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--protocol=tcp", "-proot"]
       interval: 5s
       timeout: 3s
       retries: 10
