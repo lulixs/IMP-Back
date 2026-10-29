@@ -56,6 +56,7 @@ You should see `docker-compose.yml` and `schema.sql`.
 | See the logs / errors | `docker compose logs db` |
 | **Reload after editing `schema.sql`** (wipes all data!) | `docker compose down -v` then `docker compose up -d` |
 | Remove the container but keep data | `docker compose down` |
+| MySQL repl | `docker exec -it imp-mysql mysql --default-character-set=utf8mb4 -uimp -pimp IMP` |
 
 **List the tables to check everything loaded:**
 ```
