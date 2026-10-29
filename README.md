@@ -8,7 +8,7 @@ The backend for IMP (Inventory Management Platform). It is a web API built with 
 
 | Area | Owner | Where |
 |---|---|---|
-| Database: MySQL in Docker, tables from ERD v2.5.1, sample data | Noah | `docker-compose.yml`, `db/` (to be added) |
+| Database: MySQL in Docker, tables from ERD v2.5.1, sample data | Noah | `db/` |
 | Query functions: C# code that reads the database | Nick | `Imp.Api/` |
 | REST connection: Flutter code that calls this API | Edwin | ToP-Front repo |
 
@@ -92,7 +92,7 @@ The connection details live in `Imp.Api/appsettings.Development.json` under the 
 }
 ```
 
-- These match the MySQL container in `Database/docker-compose.yml`. If you change the port or login there, change them here too.
+- These match the MySQL container in `db/docker-compose.yml`. If you change the port or login there, change them here too.
 - C# code reads it with `builder.Configuration.GetConnectionString("IMP")`. Never write the login into the code itself.
 - These values only work against the MySQL container on your own computer, so committing them is fine.
 - **Never commit the real server's password.** On the server, the connection string is set with an environment variable named `ConnectionStrings__IMP`, and this file is not used.

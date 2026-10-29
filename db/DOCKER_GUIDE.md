@@ -31,9 +31,9 @@ All commands must be run **from this folder** (the one with `docker-compose.yml`
 
 **Option B – type the path**
 1. Open PowerShell from the Start menu.
-2. Use `cd` with the folder path **in quotes** (the folder name has spaces):
+2. Use `cd` with the folder path **in quotes** (in case the path has spaces):
    ```
-   cd "C:\path\to\back end repo"
+   cd "C:\path\to\IMP-Back\db"
    ```
    Tip: click the address bar in File Explorer, copy the path, and paste it between the quotes.
 
