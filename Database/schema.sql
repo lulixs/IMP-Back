@@ -12,8 +12,9 @@ CREATE TABLE if not exists EMPLOYEE_ACCOUNT (
 CREATE TABLE if not exists MASTER_ACCOUNT(
     id INT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
     email VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
     two_factor_secret VARCHAR(255) NULL,
-    alert_threshold_days SMALLINT NOT NULL DEFAULT 180
+    alert_threshold_days SMALLINT NOT NULL DEFAULT 180 CHECK (alert_threshold_days >= 1)
 );
 
 CREATE TABLE if not exists DEVICE(
@@ -42,6 +43,7 @@ CREATE TABLE if not exists BOX(
     category_id INT NOT NULL,
     building_id INT NOT NULL,
     shelf_letter VARCHAR(3) NOT NULL CHECK (REGEXP_LIKE(shelf_letter,'^[A-Z]{1,3}$', 'c')),
+    shelf_level SMALLINT NOT NULL CHECK (shelf_level BETWEEN 1 AND 3),
     fullness ENUM ('EMPTY', 'HALF', 'FULL') NOT NULL,
     notes TEXT NULL,
     is_racked BOOLEAN NOT NULL DEFAULT TRUE,
