@@ -88,11 +88,11 @@ The connection details live in `Imp.Api/appsettings.Development.json` under the 
 
 ```json
 "ConnectionStrings": {
-  "IMP": "Server=localhost;Port=3306;Database=imp;User=CHANGE_ME;Password=CHANGE_ME"
+  "IMP": "Server=localhost;Port=3307;Database=IMP;User=imp;Password=imp"
 }
 ```
 
-- The database owner replaces the `CHANGE_ME` values with the ones from `docker-compose.yml`.
+- These match the MySQL container in `Database/docker-compose.yml`. If you change the port or login there, change them here too.
 - C# code reads it with `builder.Configuration.GetConnectionString("IMP")`. Never write the login into the code itself.
 - These values only work against the MySQL container on your own computer, so committing them is fine.
 - **Never commit the real server's password.** On the server, the connection string is set with an environment variable named `ConnectionStrings__IMP`, and this file is not used.

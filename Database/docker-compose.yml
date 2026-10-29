@@ -1,6 +1,6 @@
 # Local MySQL for the IMP backend.
 # Start:  docker compose up -d
-# Reset:  docker compose down -v && docker compose up -d   (re-runs schema.sql)
+# Reset:  docker compose down -v && docker compose up -d   (re-runs schema.sql, then sample_data.sql)
 
 services:
   db:
@@ -16,6 +16,7 @@ services:
       - "3307:3306"   # laptop port 3307 -> container port 3306 (leaves 3306 free for local MySQL)
     volumes:
       - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sample_data.sql:/docker-entrypoint-initdb.d/02-sample_data.sql:ro   # local test data only, never on the real server
       - imp-data:/var/lib/mysql
     healthcheck:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-proot"]
