@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([ToP-Front](https://github.com/lulixs/ToP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** skeleton only. The working endpoints are `GET /api/health` and `GET /api/health/database`. The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API can connect to it (see [Database connection](#database-connection)), but no endpoint reads real data yet.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)).
 
 ## Who does what
 
@@ -41,6 +41,7 @@ Wait for `Now listening on: http://localhost:5000`, then open:
 
 - http://localhost:5000/api/health shows `{"status":"ok"}` if the server is running.
 - http://localhost:5000/api/health/database shows `{"database":"ok"}` if the API can reach MySQL
+- http://localhost:5000/api/dashboard shows the box counts for every category (needs the database running).
 - http://localhost:5000/swagger lists every endpoint and lets you send test requests from the browser.
 
 Stop the server with `Ctrl+C`. After changing code, stop and run it again.
@@ -56,13 +57,18 @@ IMP-Back/
 │   ├── schema.sql                    creates the tables, from ERD v2.5.1
 │   ├── sample_data.sql               test data for your computer only
 │   └── DOCKER_GUIDE.md               step-by-step Docker help for Windows
+├── docs/api/                         the JSON each endpoint returns, agreed with the Flutter side
+│   └── dashboard.md                  GET /api/dashboard
 └── Imp.Api/                          the web API project
     ├── Program.cs                    startup: registers services and sets up request handling
     ├── Controllers/                  one class per area, each method handles one URL
-    │   └── HealthController.cs       GET /api/health and GET /api/health/database
+    │   ├── HealthController.cs       GET /api/health and GET /api/health/database
+    │   └── DashboardController.cs    GET /api/dashboard
     ├── Data/                         database access code
     │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
     │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+    ├── Models/                       C# classes that query results are turned into
+    │   └── DashboardCategory.cs      one category's row on the dashboard
     ├── appsettings.json              settings used everywhere
     ├── appsettings.Development.json  settings used only on your computer (database login)
     ├── Properties/launchSettings.json  port 5000, Development mode
@@ -121,6 +127,7 @@ The connection details live in `Imp.Api/appsettings.Development.json` under the 
   ```
 
   `await using` closes the connection when the method ends. Always pass values as parameters (`new { id }` with `@id` in the SQL) and never build SQL by joining strings, so users cannot inject SQL.
+- **Column names:** `Program.cs` turns on Dapper's `MatchNamesWithUnderscores`, so a snake_case column such as `alert_threshold_days` fills a PascalCase property such as `AlertThresholdDays`. ASP.NET Core then writes properties to JSON in camelCase (`alertThresholdDays`).
 
 ### Database health check
 

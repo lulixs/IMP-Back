@@ -25,6 +25,6 @@ Each category:
 | `name` | string | Category name |
 | `symbol` | string or null | Category emoji, null if none |
 | `full`, `half`, `empty` | int | Racked, not-deleted boxes with that fullness |
-| `storedTooLong` | int | Racked, not-deleted boxes with `racked_since` older than `alertThresholdDays` |
+| `storedTooLong` | int | Racked, not-deleted boxes racked `alertThresholdDays` or more days ago. With a threshold of 180, a box racked exactly 180 days ago counts. |
 
 Every category is included, even with 0 boxes. Sorted by name.
