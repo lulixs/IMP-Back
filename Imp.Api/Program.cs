@@ -1,6 +1,11 @@
+using Imp.Api.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
+var connectionString = builder.Configuration.GetConnectionString("IMP")
+    ?? throw new InvalidOperationException("Connection string 'IMP' was not found. Check Imp.Api/appsettings.Development.json.");
+builder.Services.AddSingleton<IDbConnectionFactory>(new MySqlConnectionFactory(connectionString));
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi

@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([ToP-Front](https://github.com/lulixs/ToP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** skeleton only. The one working endpoint is `GET /api/health`. The MySQL database runs in Docker (see [Database setup](#database-setup)), but the API does not read from it yet.
+**Status:** skeleton only. The working endpoints are `GET /api/health` and `GET /api/health/database`. The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API can connect to it (see [Database connection](#database-connection)), but no endpoint reads real data yet.
 
 ## Who does what
 
@@ -40,6 +40,7 @@ dotnet run --project Imp.Api
 Wait for `Now listening on: http://localhost:5000`, then open:
 
 - http://localhost:5000/api/health shows `{"status":"ok"}` if the server is running.
+- http://localhost:5000/api/health/database shows `{"database":"ok"}` if the API can reach MySQL
 - http://localhost:5000/swagger lists every endpoint and lets you send test requests from the browser.
 
 Stop the server with `Ctrl+C`. After changing code, stop and run it again.
@@ -58,7 +59,10 @@ IMP-Back/
 └── Imp.Api/                          the web API project
     ├── Program.cs                    startup: registers services and sets up request handling
     ├── Controllers/                  one class per area, each method handles one URL
-    │   └── HealthController.cs       GET /api/health
+    │   └── HealthController.cs       GET /api/health and GET /api/health/database
+    ├── Data/                         database access code
+    │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
+    │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
     ├── appsettings.json              settings used everywhere
     ├── appsettings.Development.json  settings used only on your computer (database login)
     ├── Properties/launchSettings.json  port 5000, Development mode
@@ -104,6 +108,36 @@ The connection details live in `Imp.Api/appsettings.Development.json` under the 
 - C# code reads it with `builder.Configuration.GetConnectionString("IMP")`. Never write the login into the code itself.
 - These values only work against the MySQL container on your own computer, so committing them is fine.
 - **Never commit the real server's password.** On the server, the connection string is set with an environment variable named `ConnectionStrings__IMP`, and this file is not used.
+
+### How the API talks to MySQL
+
+- **Libraries:** [MySqlConnector](https://mysqlconnector.net/) opens the connection to MySQL, and [Dapper](https://github.com/DapperLib/Dapper) runs SQL and turns the rows into C# objects. We chose MySqlConnector over Oracle's `MySql.Data` because it has proper async support. Both are listed in `Imp.Api.csproj` and install by themselves on the first `dotnet run` or `dotnet restore`.
+- **Connection factory:** `Program.cs` reads the `IMP` connection string once at startup and registers a `MySqlConnectionFactory`. If the string is missing, the API refuses to start and says why. The factory also sets a 5 second connection timeout, so a stopped database fails quickly instead of hanging.
+- **Using it in a controller:** ask for `IDbConnectionFactory` in the constructor, open a connection, and run a query with Dapper:
+
+  ```csharp
+  await using var connection = await _db.OpenConnectionAsync(cancellationToken);
+  var boxes = await connection.QueryAsync<Box>("SELECT * FROM BOX LIMIT 5");
+  ```
+
+  `await using` closes the connection when the method ends. Always pass values as parameters (`new { id }` with `@id` in the SQL) and never build SQL by joining strings, so users cannot inject SQL.
+
+### Database health check
+
+`GET /api/health/database` opens a connection and runs `SELECT 1`.
+
+| Situation | Status | Body |
+|---|---|---|
+| MySQL container running and login works | 200 | `{"database":"ok"}` |
+| Container stopped, wrong port, wrong login, or no answer within 5 seconds | 503 | `{"database":"error"}` |
+
+The reason for a failure is written to the API's console output (not sent to the caller). To try it:
+
+```
+cd db
+docker compose stop     # then open /api/health/database: shows "error"
+docker compose start    # wait for (healthy), then reload: shows "ok"
+```
 
 ## Database setup
 
