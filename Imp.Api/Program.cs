@@ -1,5 +1,7 @@
 using Imp.Api.Data;
 
+Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
