@@ -233,7 +233,7 @@ The API runs on plain HTTP while we develop on our own computers (decision D-136
 
 ## Claude prompt logs
 
-Every prompt sent to Claude Code in this repo is saved word for word, with a timestamp, in `claude_logs/`. There is one markdown file per session, named by date, person, and session. A hook does the logging: `.claude/settings.json` runs `.claude/hooks/log_prompt.py` each time a prompt is sent, so it needs Python 3 (`python3` or `python` on your PATH). Commit the log files along with your other changes. Nobody edits or deletes them, Claude included, and Claude doesn't read them for context.
+Every prompt sent to Claude Code in this repo is saved word for word, with a timestamp, in `claude_logs/`, with a folder for each person (named from your git `user.name`) and one markdown file per session, named by date and session. A hook does the logging: `.claude/settings.json` runs `.claude/hooks/log_prompt.py` each time a prompt is sent, so it needs Python 3 (`python3` or `python` on your PATH). Commit the log files along with your other changes. Nobody edits or deletes them, Claude included, and Claude doesn't read them for context.
 
 ## Writing style
 

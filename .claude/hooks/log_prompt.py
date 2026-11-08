@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-# Claude Code UserPromptSubmit hook: appends every prompt sent to Claude, word for word, to one markdown file per session.
+# Claude Code UserPromptSubmit hook: appends every prompt sent to Claude, word for word, to one markdown file per session,
+# in a subfolder named after the person (their git user.name, or their computer login if git has none).
 # Usage (set in .claude/settings.json): python3 log_prompt.py <log folder>
 # It never prints anything (a UserPromptSubmit hook's output would be added to the prompt) and never blocks a prompt.
 # The same script is used in IMP-Front, IMP-Back, the IMP docs folder, and Luke's top/scripts. Keep the copies identical.
@@ -33,15 +34,16 @@ def main():
     cwd = event.get('cwd', os.getcwd())
     prompt = event.get('prompt', '')
     now = datetime.datetime.now().astimezone()
+    who = person(cwd)
+    slug = re.sub(r'[^a-z0-9]+', '-', who.lower()).strip('-') or 'unknown'
+    folder = os.path.join(folder, slug)
     os.makedirs(folder, exist_ok=True)
 
     existing = [f for f in os.listdir(folder) if f.endswith(f'_{session[:8]}.md')]
     if existing:
         path = os.path.join(folder, existing[0])
     else:
-        who = person(cwd)
-        slug = re.sub(r'[^a-z0-9]+', '-', who.lower()).strip('-') or 'unknown'
-        path = os.path.join(folder, f'{now:%Y-%m-%d_%H%M%S}_{slug}_{session[:8]}.md')
+        path = os.path.join(folder, f'{now:%Y-%m-%d_%H%M%S}_{session[:8]}.md')
         with open(path, 'w', encoding='utf-8') as f:
             f.write(f'# Claude session {now:%Y-%m-%d %H:%M}\n\n'
                     f'- Person: {who}\n- Session ID: {session}\n- Started in: {cwd}\n\n'
