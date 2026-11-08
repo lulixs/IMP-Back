@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/log_prompt.py\" \"$CLAUDE_PROJECT_DIR/claude_logs\" || python \"$CLAUDE_PROJECT_DIR/.claude/hooks/log_prompt.py\" \"$CLAUDE_PROJECT_DIR/claude_logs\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

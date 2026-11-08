@@ -1,6 +1,6 @@
 # IMP-Back
 
-The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([ToP-Front](https://github.com/lulixs/ToP-Front)) calls it over HTTP and gets JSON back.
+The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
 **Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)).
 
@@ -10,7 +10,7 @@ The backend for IMP (Inventory Management Platform). It is a web API built with 
 |---|---|---|
 | Database: MySQL in Docker, tables from ERD v2.5.1, sample data | Noah | `db/` |
 | Query functions: C# code that reads the database | Nick | `Imp.Api/` |
-| REST connection: Flutter code that calls this API | Edwin | ToP-Front repo |
+| REST connection: Flutter code that calls this API | Edwin | IMP-Front repo |
 
 ## Setup (once per computer)
 
@@ -75,6 +75,10 @@ IMP-Back/
     └── Imp.Api.csproj                .NET version and packages
 ```
 
+## API contracts
+
+Each endpoint's JSON shape is written in `docs/api/` before the endpoint is built, and the Flutter app (IMP-Front) codes against that file. If a shape needs to change, change the contract file first, then the code on both sides.
+
 ## How a request works
 
 1. The app sends a request, for example `GET /api/health`.
@@ -96,7 +100,7 @@ Use the address that matches where the app is running:
 
 Keep the address in one setting in the app, because it changes when the real server is set up.
 
-**Android blocks plain HTTP by default.** Add `android:usesCleartextTraffic="true"` to the `<application>` tag in ToP-Front's `android/app/src/debug/AndroidManifest.xml`.
+**Android blocks plain HTTP by default.** Add `android:usesCleartextTraffic="true"` to the `<application>` tag in IMP-Front's `android/app/src/debug/AndroidManifest.xml`.
 
 **Chrome:** the API allows requests from any web page while in Development mode (CORS), so `flutter run -d chrome` works. Other platforms do not need this.
 
@@ -226,3 +230,11 @@ The API runs on plain HTTP while we develop on our own computers (decision D-136
 | `address already in use` on port 5000 (Mac) | Turn off AirPlay Receiver in System Settings, General, AirDrop & Handoff. |
 | Flutter in Chrome shows a CORS error | Check the API is running in Development mode (`dotnet run` does this). |
 | Android app cannot reach the API | Use `10.0.2.2` instead of `localhost` on the emulator, and add the cleartext setting above. |
+
+## Claude prompt logs
+
+Every prompt sent to Claude Code in this repo is saved word for word, with a timestamp, in `claude_logs/`. There is one markdown file per session, named by date, person, and session. A hook does the logging: `.claude/settings.json` runs `.claude/hooks/log_prompt.py` each time a prompt is sent, so it needs Python 3 (`python3` or `python` on your PATH). Commit the log files along with your other changes. Nobody edits or deletes them, Claude included, and Claude doesn't read them for context.
+
+## Writing style
+
+In comments, docs, and this README: no semicolons between list items, no em dashes, and write "tablet" rather than the device's brand name.
