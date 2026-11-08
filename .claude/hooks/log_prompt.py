@@ -46,8 +46,7 @@ def main():
         path = os.path.join(folder, f'{now:%Y-%m-%d_%H%M%S}_{session[:8]}.md')
         with open(path, 'w', encoding='utf-8') as f:
             f.write(f'# Claude session {now:%Y-%m-%d %H:%M}\n\n'
-                    f'- Person: {who}\n- Session ID: {session}\n- Started in: {cwd}\n\n'
-                    'Every prompt sent to Claude in this session, word for word, written by the logging hook.\n')
+                    f'- Person: {who}\n- Session ID: {session}\n- Started in: {cwd}\n')
 
     mark = fence(prompt)
     with open(path, 'a', encoding='utf-8') as f:
