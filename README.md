@@ -50,6 +50,7 @@ IMP-Back/
 ├── CLAUDE.md                         points Claude Code to this README
 ├── .gitignore
 ├── global.json                       pins the .NET SDK to 10.0.x
+├── IMP-Back.slnx                     the solution file, which lists both projects so dotnet test finds them
 ├── .claude/                          the prompt-logging hook (see Claude prompt logs)
 ├── claude_logs/                      prompts sent to Claude Code, written only by the hook
 ├── db/                               the MySQL database, run with Docker
@@ -64,26 +65,40 @@ IMP-Back/
 │   ├── buildings.md                  the building list
 │   ├── categories.md                 the category list
 │   └── dashboard.md                  GET /api/dashboard
-└── Imp.Api/                          the web API project
-    ├── Program.cs                    startup: registers services and sets up request handling
-    ├── Controllers/                  one class per area, each method handles one URL
-    │   ├── HealthController.cs       GET /api/health and GET /api/health/database
-    │   └── DashboardController.cs    GET /api/dashboard
-    ├── Data/                         database access code
-    │   ├── AuditAction.cs            the audit actions, matching the AUDIT_LOG enum
-    │   ├── AuditLog.cs               writes one audit entry, inside the caller's transaction
-    │   ├── AuditTarget.cs            the audit target types
-    │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
-    │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
-    │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
-    ├── Models/                       C# classes that query results are turned into
-    │   ├── AuditEntry.cs             one audit entry to write
-    │   └── DashboardCategory.cs      one category's row on the dashboard
-    ├── appsettings.json              settings used everywhere
-    ├── appsettings.Development.json  settings used only on your computer (database login)
-    ├── Properties/launchSettings.json  port 5000, Development mode
-    └── Imp.Api.csproj                .NET version and packages
+├── Imp.Api/                          the web API project
+│   ├── Program.cs                    startup: registers services and sets up request handling
+│   ├── Controllers/                  one class per area, each method handles one URL
+│   │   ├── HealthController.cs       GET /api/health and GET /api/health/database
+│   │   └── DashboardController.cs    GET /api/dashboard
+│   ├── Data/                         database access code
+│   │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
+│   │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+│   │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
+│   ├── Models/                       C# classes that query results are turned into
+│   │   └── DashboardCategory.cs      one category's row on the dashboard
+│   ├── Security/                     PIN and password hashing
+│   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
+│   │   └── BcryptPasswordHasher.cs   hashes with bcrypt at cost 12 and checks PINs against stored hashes
+│   ├── appsettings.json              settings used everywhere
+│   ├── appsettings.Development.json  settings used only on your computer (database login)
+│   ├── Properties/launchSettings.json  port 5000, Development mode
+│   └── Imp.Api.csproj                .NET version and packages
+└── Imp.Api.Tests/                    xUnit tests for Imp.Api
+    ├── PasswordHasherTests.cs        tests for BcryptPasswordHasher, using copies of the sample data hashes
+    └── Imp.Api.Tests.csproj          test packages and a reference to Imp.Api
 ```
+
+## Running tests
+
+From the repo folder:
+
+```
+dotnet test
+```
+
+This builds both projects and runs every test in `Imp.Api.Tests/`. The tests do not need Docker or the database. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
+
+The hashes in `PasswordHasherTests.cs` are copies of the ones in `db/sample_data.sql`. If the sample PINs or hashes change, update the test file too.
 
 ## API contracts
 
@@ -210,7 +225,7 @@ Keep the table scripts and the sample data in separate files, so `schema.sql` ca
 
 ### Test logins
 
-The sample data comes with these accounts. PINs and passwords are stored as bcrypt hashes, never as plain text. New hashes use cost 12 (D-162). Pass it explicitly, for example `BCrypt.Net.BCrypt.HashPassword(pin, 12)`, because BCrypt.Net-Next uses 11 when no cost is given. The hashes in `sample_data.sql` were made at cost 10. They still check correctly, because each hash stores its own cost.
+The sample data comes with these accounts. PINs and passwords are stored as bcrypt hashes, never as plain text. New hashes use cost 12 (D-162). Pass it explicitly, for example `BCrypt.Net.BCrypt.HashPassword(pin, 12)`, because BCrypt.Net-Next uses 11 when no cost is given. The hashes in `sample_data.sql` were regenerated at cost 12 to match.
 
 | Account | Sign in with | Notes |
 |---|---|---|
