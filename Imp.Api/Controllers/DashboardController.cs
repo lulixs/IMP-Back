@@ -24,6 +24,8 @@ public class DashboardController : ControllerBase {
                 "SELECT alert_threshold_days FROM MASTER_ACCOUNT",
                 cancellationToken: ct));
 
+        var today = StoreClock.Today();
+
         var categories = await connection.QueryAsync<DashboardCategory>(
             // I Blame Luke for my pain and suffering
             new CommandDefinition("""
@@ -32,12 +34,12 @@ public class DashboardController : ControllerBase {
                     COUNT(CASE WHEN b.fullness = 'FULL' THEN 1 END) AS 'full', 
                     COUNT(CASE WHEN b.fullness = 'HALF' THEN 1 END) AS 'half', 
                     COUNT(CASE WHEN b.fullness = 'EMPTY' THEN 1 END) AS 'empty', 
-                    COUNT(CASE WHEN DATEDIFF(CURDATE(), b.racked_since) >= @alertThresholdDays THEN 1 END) AS 'storedTooLong' 
+                    COUNT(CASE WHEN DATEDIFF(@today, b.racked_since) >= @alertThresholdDays THEN 1 END) AS 'storedTooLong' 
                 FROM CATEGORY AS c 
                 LEFT JOIN BOX AS b ON b.category_id = c.id AND b.is_racked = TRUE AND b.deleted_at is NULL 
                 GROUP BY c.id 
                 ORDER BY c.name;
-            """, new { alertThresholdDays }, cancellationToken: ct));
+            """, new { alertThresholdDays, today }, cancellationToken: ct));
         return Ok(new {alertThresholdDays, categories});
     }
 }

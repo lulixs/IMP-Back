@@ -47,8 +47,12 @@ Stop the server with `Ctrl+C`. After changing code, stop and run it again.
 ```
 IMP-Back/
 ├── README.md
+├── CLAUDE.md                         points Claude Code to this README
 ├── .gitignore
+├── global.json                       pins the .NET SDK to 10.0.x
 ├── IMP-Back.slnx                     the solution file, which lists both projects so dotnet test finds them
+├── .claude/                          the prompt-logging hook (see Claude prompt logs)
+├── claude_logs/                      prompts sent to Claude Code, written only by the hook
 ├── db/                               the MySQL database, run with Docker
 │   ├── docker-compose.yml            how Docker runs MySQL (port 3307, login imp / imp)
 │   ├── schema.sql                    creates the tables, from ERD v2.6
@@ -68,7 +72,8 @@ IMP-Back/
 │   │   └── DashboardController.cs    GET /api/dashboard
 │   ├── Data/                         database access code
 │   │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
-│   │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+│   │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+│   │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
 │   ├── Models/                       C# classes that query results are turned into
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing

@@ -23,7 +23,7 @@ Each request carries one token, as `Authorization: Bearer <token>` (D-164):
 
 | Token | Endpoints |
 |---|---|
-| None | `GET /api/setup/status`, `POST /api/setup`, `POST /api/devices` |
+| None | `GET /api/setup/status`, `POST /api/setup`, `POST /api/devices`, and the health checks `GET /api/health` and `GET /api/health/database` |
 | Device token | `POST /api/devices/renew` (expired is fine, see that endpoint), `GET /api/employees/active`, `POST /api/sessions` |
 | Session token | Everything else, in this file and every other contract |
 

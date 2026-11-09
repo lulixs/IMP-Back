@@ -227,7 +227,7 @@ No body. The app goes back to the Boxes list.
 
 The server, in one transaction:
 
-- sets `deleted_at` to now and `deleted_by` from the session token
+- sets `deleted_at` to now and `deleted_by` from the session token, and sets `last_updated_at` and `last_updated_by` the same way, since a soft delete is a change (D-176)
 - writes one audit entry: BOX DELETED, with the label `#6789`
 
 ### Errors

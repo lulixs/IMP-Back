@@ -1,5 +1,7 @@
 # GET /api/dashboard
 
+Takes the session token (D-164). Errors use the shared format in [README.md](README.md), and only the session token errors listed there apply.
+
 Returns one JSON object: the alert threshold, then one entry per category.
 
 ```json
@@ -25,6 +27,6 @@ Each category:
 | `name` | string | Category name |
 | `symbol` | string or null | Category emoji, null if none |
 | `full`, `half`, `empty` | int | Racked, not-deleted boxes with that fullness |
-| `storedTooLong` | int | Racked, not-deleted boxes racked `alertThresholdDays` or more days ago. With a threshold of 180, a box racked exactly 180 days ago counts. |
+| `storedTooLong` | int | Racked, not-deleted boxes racked `alertThresholdDays` or more days ago. With a threshold of 180, a box racked exactly 180 days ago counts. Days are counted to today in the store's time zone (Eastern), not UTC, as in [boxes.md](boxes.md). |
 
 Every category is included, even with 0 boxes. Sorted by name.
