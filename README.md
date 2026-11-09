@@ -220,7 +220,7 @@ Keep the table scripts and the sample data in separate files, so `schema.sql` ca
 
 ### Test logins
 
-The sample data comes with these accounts. PINs and passwords are stored as bcrypt hashes, never as plain text. New hashes use cost 12 (D-162). Pass it explicitly, for example `BCrypt.Net.BCrypt.HashPassword(pin, 12)`, because BCrypt.Net-Next uses 11 when no cost is given. The hashes in `sample_data.sql` were made at cost 10. They still check correctly, because each hash stores its own cost.
+The sample data comes with these accounts. PINs and passwords are stored as bcrypt hashes, never as plain text. New hashes use cost 12 (D-162). Pass it explicitly, for example `BCrypt.Net.BCrypt.HashPassword(pin, 12)`, because BCrypt.Net-Next uses 11 when no cost is given. The hashes in `sample_data.sql` were regenerated at cost 12 to match.
 
 | Account | Sign in with | Notes |
 |---|---|---|
