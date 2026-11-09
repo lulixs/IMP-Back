@@ -73,7 +73,8 @@ INSERT INTO CATEGORY (id, name, symbol) VALUES
 (9, 'Fall Decor',       NULL);
 
 -- ---------- Boxes ----------
--- Covers: full / half / empty, all three buildings and shelf levels,
+-- Covers: full / half / empty, the three buildings that hold boxes (Garage Annex is
+-- empty on purpose), all shelf levels,
 -- 1- to 3-letter shelves, boxes past the 180-day alert threshold,
 -- unracked boxes (12, 13), soft-deleted boxes (19, 20), a box that was
 -- deleted and restored (10), and a box unracked then re-racked (7).

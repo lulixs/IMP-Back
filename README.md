@@ -47,7 +47,11 @@ Stop the server with `Ctrl+C`. After changing code, stop and run it again.
 ```
 IMP-Back/
 ├── README.md
+├── CLAUDE.md                         points Claude Code to this README
 ├── .gitignore
+├── global.json                       pins the .NET SDK to 10.0.x
+├── .claude/                          the prompt-logging hook (see Claude prompt logs)
+├── claude_logs/                      prompts sent to Claude Code, written only by the hook
 ├── db/                               the MySQL database, run with Docker
 │   ├── docker-compose.yml            how Docker runs MySQL (port 3307, login imp / imp)
 │   ├── schema.sql                    creates the tables, from ERD v2.6
@@ -66,9 +70,14 @@ IMP-Back/
     │   ├── HealthController.cs       GET /api/health and GET /api/health/database
     │   └── DashboardController.cs    GET /api/dashboard
     ├── Data/                         database access code
+    │   ├── AuditAction.cs            the audit actions, matching the AUDIT_LOG enum
+    │   ├── AuditLog.cs               writes one audit entry, inside the caller's transaction
+    │   ├── AuditTarget.cs            the audit target types
     │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
-    │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+    │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+    │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
     ├── Models/                       C# classes that query results are turned into
+    │   ├── AuditEntry.cs             one audit entry to write
     │   └── DashboardCategory.cs      one category's row on the dashboard
     ├── appsettings.json              settings used everywhere
     ├── appsettings.Development.json  settings used only on your computer (database login)
