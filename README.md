@@ -48,6 +48,7 @@ Stop the server with `Ctrl+C`. After changing code, stop and run it again.
 IMP-Back/
 ├── README.md
 ├── .gitignore
+├── IMP-Back.slnx                     the solution file, which lists both projects so dotnet test finds them
 ├── db/                               the MySQL database, run with Docker
 │   ├── docker-compose.yml            how Docker runs MySQL (port 3307, login imp / imp)
 │   ├── schema.sql                    creates the tables, from ERD v2.6
@@ -60,21 +61,39 @@ IMP-Back/
 │   ├── buildings.md                  the building list
 │   ├── categories.md                 the category list
 │   └── dashboard.md                  GET /api/dashboard
-└── Imp.Api/                          the web API project
-    ├── Program.cs                    startup: registers services and sets up request handling
-    ├── Controllers/                  one class per area, each method handles one URL
-    │   ├── HealthController.cs       GET /api/health and GET /api/health/database
-    │   └── DashboardController.cs    GET /api/dashboard
-    ├── Data/                         database access code
-    │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
-    │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
-    ├── Models/                       C# classes that query results are turned into
-    │   └── DashboardCategory.cs      one category's row on the dashboard
-    ├── appsettings.json              settings used everywhere
-    ├── appsettings.Development.json  settings used only on your computer (database login)
-    ├── Properties/launchSettings.json  port 5000, Development mode
-    └── Imp.Api.csproj                .NET version and packages
+├── Imp.Api/                          the web API project
+│   ├── Program.cs                    startup: registers services and sets up request handling
+│   ├── Controllers/                  one class per area, each method handles one URL
+│   │   ├── HealthController.cs       GET /api/health and GET /api/health/database
+│   │   └── DashboardController.cs    GET /api/dashboard
+│   ├── Data/                         database access code
+│   │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
+│   │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+│   ├── Models/                       C# classes that query results are turned into
+│   │   └── DashboardCategory.cs      one category's row on the dashboard
+│   ├── Security/                     PIN and password hashing
+│   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
+│   │   └── BcryptPasswordHasher.cs   hashes with bcrypt at cost 12 and checks PINs against stored hashes
+│   ├── appsettings.json              settings used everywhere
+│   ├── appsettings.Development.json  settings used only on your computer (database login)
+│   ├── Properties/launchSettings.json  port 5000, Development mode
+│   └── Imp.Api.csproj                .NET version and packages
+└── Imp.Api.Tests/                    xUnit tests for Imp.Api
+    ├── PasswordHasherTests.cs        tests for BcryptPasswordHasher, using copies of the sample data hashes
+    └── Imp.Api.Tests.csproj          test packages and a reference to Imp.Api
 ```
+
+## Running tests
+
+From the repo folder:
+
+```
+dotnet test
+```
+
+This builds both projects and runs every test in `Imp.Api.Tests/`. The tests do not need Docker or the database. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
+
+The hashes in `PasswordHasherTests.cs` are copies of the ones in `db/sample_data.sql`. If the sample PINs or hashes change, update the test file too.
 
 ## API contracts
 

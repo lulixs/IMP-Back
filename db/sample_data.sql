@@ -31,17 +31,17 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ---------- Employees ----------
 -- pin_hash is the bcrypt hash of the 6-digit PIN shown in the comment at the end of each row.
 INSERT INTO EMPLOYEE_ACCOUNT (id, name, pin_hash, is_activated, last_sign_in_at) VALUES
-(1, 'Daniel Finkle', '$2b$10$zAe0rIkysQeIZRRpzPgrOew0ujDPYMrKMNxl8JVGF8ydxOmNFOcg2', TRUE,  NOW() - INTERVAL 20 MINUTE),  -- PIN 111111
-(2, 'Thomas Anos',   '$2b$10$95OWXM4VED7.dw3ig2CIXux9KpSqu2A24RFkrQJqerGZIDxbs/6Sy', TRUE,  NOW() - INTERVAL 2 HOUR),  -- PIN 222222
-(3, 'Maria Lopez',   '$2b$10$OAwFQQx2rFmrAqxhcHQz.uhDYdFmvm.yAg57OA7iPlcZtQJOmmsmi', TRUE,  NOW() - INTERVAL 1 DAY),  -- PIN 333333
-(4, 'Grace Kim',     '$2b$10$jIzALHRcNg02zuCNkPwYY.4AfzjUOJOma2V4Bz9nXmjsasxrW34KW', TRUE,  NOW() - INTERVAL 15 DAY),  -- PIN 444444
-(5, 'Ben Carter',    '$2b$10$5.VzIHTfiGouhHkDG6IjDObGWDhJWH5ZURdEa4P.I0UCEyEp4C1za', FALSE, NOW() - INTERVAL 40 DAY),  -- PIN 555555, DEACTIVATED, sign-in should fail
-(6, 'Sam Ortiz',     '$2b$10$EnoRjctPDW0o/izfj3WurevYKhV.jcV28A1WAzP5oih.N7VjyoGWa', TRUE,  NULL);  -- PIN 666666, never signed in
+(1, 'Daniel Finkle', '$2a$12$8H1SlyOc0K7GZs3iAuhUweZZ2FuuFtfV5CvYzAHWJp2oQW.FzU.Aq', TRUE,  NOW() - INTERVAL 20 MINUTE),  -- PIN 111111
+(2, 'Thomas Anos',   '$2a$12$lCUr71Ae9moYJlBjMUPgju5b37m6i1pZ8OSmQVpVW95Jljb7OlYDu', TRUE,  NOW() - INTERVAL 2 HOUR),  -- PIN 222222
+(3, 'Maria Lopez',   '$2a$12$V2121bK9ObX.ahWDSVwmKuQ4pyNjtrGaI13FUXoeSGgmGBL6.7KAK', TRUE,  NOW() - INTERVAL 1 DAY),  -- PIN 333333
+(4, 'Grace Kim',     '$2a$12$IpoiVCvcsVwIgmyUgey5s.i.stJGpZ8pXgpo52Tz8fK/96SW5vfGG', TRUE,  NOW() - INTERVAL 15 DAY),  -- PIN 444444
+(5, 'Ben Carter',    '$2a$12$MK9tF/6fEQO5sRt/BblaPOGUpDoaWmffK4LjGzU/NyyxcirrJ.wlK', FALSE, NOW() - INTERVAL 40 DAY),  -- PIN 555555, DEACTIVATED, sign-in should fail
+(6, 'Sam Ortiz',     '$2a$12$Xsrg4juLa9YQS26l1r.lWOs3vulkavhB.QbH2qgqSQ92nMxLcUdza', TRUE,  NULL);  -- PIN 666666, never signed in
 
 -- ---------- Master account (only one row allowed) ----------
 -- password_hash is the bcrypt hash of the master password: master123
 INSERT INTO MASTER_ACCOUNT (id, email, password_hash, two_factor_secret, alert_threshold_days) VALUES
-(1, 'master@example.com', '$2b$10$wWuAF9mkiBzflLMkUKaa8eBLKoYrMmEMY8dvC112vS./eJdluNmZq', NULL, 180);
+(1, 'master@example.com', '$2a$12$rdV81udFbtuzUn29Zovvt.Bhls8RKy2vZ.HEH52VDMPWtR8PWJbHO', NULL, 180);
 
 -- ---------- Devices ----------
 INSERT INTO DEVICE (id, device_name, active_employee_id, is_elevated, last_activity_at) VALUES
