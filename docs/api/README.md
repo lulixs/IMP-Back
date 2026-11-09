@@ -35,6 +35,62 @@ Every error, from every endpoint, has the same shape (D-165):
 | `error` | string | One sentence a person can read, shown as it is on the screen. Ends with a period. Never contains stack traces, SQL, or other server details |
 | `code` | string, optional | A fixed word the app acts on. Only sent on the errors below that need the app to leave the current screen (D-168). Left out everywhere else |
 
+## Errors and logging
+
+Every error leaves the API in the same JSON shape, and every error is written to a log file.
+
+### Sending an error from your code
+
+To report a problem the caller should know about, throw an `ApiError`:
+
+```csharp
+throw ApiError.NotFound("Box not found");             // 404
+throw ApiError.BadRequest("Label cannot be empty");   // 400
+throw new ApiError(409, "That shelf is already taken");
+```
+
+Shortcuts exist for 400, 401, 403, 404 and 409. For any other status, use `new ApiError(statusCode, message)`. The caller gets that status code and this JSON:
+
+```json
+{ "error": "Box not found" }
+```
+
+**The message is sent to the app, so never put secrets, SQL, or table names in it.**
+
+### Everything else
+
+Any other exception (a database error, a bug) returns status 500 and a general message. The real error is never sent to the app.
+
+```json
+{ "error": "Something went wrong. Please try again later.", "traceId": "0HN7..." }
+```
+
+The `traceId` is also written in the log, so if someone reports a 500, search the log files for that id to find the real error and its stack trace.
+
+### Bad request bodies
+
+If the app sends JSON that does not match what an endpoint expects (malformed, wrong shape, missing body), the API returns `400` with `{ "error": "The request body is invalid." }` instead of ASP.NET's default response. This is set in `Program.cs` with `InvalidModelStateResponseFactory`, so it follows the same format and logging as every other error.
+
+### Where the logs are
+
+| Where | What it contains |
+|---|---|
+| The terminal running `dotnet run` | Everything (information, warnings, errors) |
+| `Imp.Api/logs/imp-YYYYMMDD.log` | Warnings and errors only, with full exception details |
+
+- One file per day, and the 30 most recent days are kept.
+- An `ApiError` below 500 is logged as a **warning**. Status 500 and above, and any other exception, are logged as **errors**.
+- Each line has the request method, path, status code and `traceId`, followed by the exception and its stack trace.
+- `logs/` is listed in `.gitignore`. **Never commit log files or put them on a public web path**, because they contain internal details such as SQL and table names.
+- On the real server, the account running the API needs permission to write to `Imp.Api/logs/`.
+
+### How it is built
+
+- `Imp.Api/Errors/ApiError.cs` is the exception class described above.
+- The error handler is the first `app.Use(...)` block in `Program.cs`. It must stay first so it catches errors from everything after it.
+- Logging uses [Serilog](https://serilog.net/) (the `Serilog.AspNetCore` package), set up at the top of `Program.cs`.
+- If the caller disconnects mid-request, nothing is logged as an error.
+
 ### Status codes
 
 | Status | Meaning | Example `error` |

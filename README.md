@@ -68,6 +68,9 @@ IMP-Back/
     ├── Data/                         database access code
     │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
     │   └── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
+    ├── Errors/
+    │   └── ApiError.cs               exception that sends a status code and message to the app
+    ├── logs/                         error log files (not committed)
     ├── Models/                       C# classes that query results are turned into
     │   └── DashboardCategory.cs      one category's row on the dashboard
     ├── appsettings.json              settings used everywhere
