@@ -58,6 +58,8 @@ IMP-Back/
 │   ├── sample_data.sql               test data for your computer only
 │   └── DOCKER_GUIDE.md               step-by-step Docker help for Windows
 ├── docs/api/                         the JSON each endpoint returns, agreed with the Flutter side
+│   ├── README.md                     rules every contract shares: JSON, tokens, and the error format
+│   ├── auth.md                       first-time setup, tablets, sign-in and sign-out, Master mode
 │   └── dashboard.md                  GET /api/dashboard
 └── Imp.Api/                          the web API project
     ├── Program.cs                    startup: registers services and sets up request handling
