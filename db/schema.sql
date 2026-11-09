@@ -14,7 +14,8 @@ CREATE TABLE if not exists MASTER_ACCOUNT(
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     two_factor_secret VARCHAR(255) NULL,
-    alert_threshold_days SMALLINT NOT NULL DEFAULT 180 CHECK (alert_threshold_days >= 1)
+    alert_threshold_days SMALLINT NOT NULL DEFAULT 180 CHECK (alert_threshold_days >= 1),
+    idle_timeout_minutes SMALLINT NOT NULL DEFAULT 10 CHECK (idle_timeout_minutes >= 1)
 );
 
 CREATE TABLE if not exists DEVICE(
@@ -23,6 +24,7 @@ CREATE TABLE if not exists DEVICE(
     active_employee_id INT NULL,
     is_elevated BOOLEAN NOT NULL DEFAULT FALSE,
     last_activity_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    removed_at DATETIME NULL,
 
     FOREIGN KEY (active_employee_id) REFERENCES EMPLOYEE_ACCOUNT(id)
 );

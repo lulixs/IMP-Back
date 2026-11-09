@@ -8,7 +8,7 @@ The backend for IMP (Inventory Management Platform). It is a web API built with 
 
 | Area | Owner | Where |
 |---|---|---|
-| Database: MySQL in Docker, tables from ERD v2.5.1, sample data | Noah | `db/` |
+| Database: MySQL in Docker, tables from ERD v2.6, sample data | Noah | `db/` |
 | Query functions: C# code that reads the database | Nick | `Imp.Api/` |
 | REST connection: Flutter code that calls this API | Edwin | IMP-Front repo |
 
@@ -54,7 +54,7 @@ IMP-Back/
 ├── .gitignore
 ├── db/                               the MySQL database, run with Docker
 │   ├── docker-compose.yml            how Docker runs MySQL (port 3307, login imp / imp)
-│   ├── schema.sql                    creates the tables, from ERD v2.5.1
+│   ├── schema.sql                    creates the tables, from ERD v2.6
 │   ├── sample_data.sql               test data for your computer only
 │   └── DOCKER_GUIDE.md               step-by-step Docker help for Windows
 ├── docs/api/                         the JSON each endpoint returns, agreed with the Flutter side
@@ -191,7 +191,7 @@ The `.sql` files only run when the database is empty. After pulling changes to `
 
 | File | What it does | Runs on |
 |---|---|---|
-| `schema.sql` | Creates the `IMP` database and its 7 tables, following ERD v2.5.1 | Your computer and the real server |
+| `schema.sql` | Creates the `IMP` database and its 7 tables, following ERD v2.6 | Your computer and the real server |
 | `sample_data.sql` | Clears the tables and fills them with test data | Your computer only, never the real server |
 | `docker-compose.yml` | Runs MySQL 8.0 on port 3307 and loads both files above on first start | Your computer only |
 
