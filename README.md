@@ -2,15 +2,11 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)).
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) isn't built yet either.
 
 ## Who does what
 
-| Area | Owner | Where |
-|---|---|---|
-| Database: MySQL in Docker, tables from ERD v2.6, sample data | Noah | `db/` |
-| Query functions: C# code that reads the database | Nick | `Imp.Api/` |
-| REST connection: Flutter code that calls this API | Edwin | IMP-Front repo |
+Roles rotate weekly (D-143). The Server role owns `db/` and `Imp.Api/`, and the Connect role owns the app code in IMP-Front that calls this API. Who holds each role this week is on the team roadmap.
 
 ## Setup (once per computer)
 
@@ -60,6 +56,9 @@ IMP-Back/
 ├── docs/api/                         the JSON each endpoint returns, agreed with the Flutter side
 │   ├── README.md                     rules every contract shares: JSON, tokens, and the error format
 │   ├── auth.md                       first-time setup, tablets, sign-in and sign-out, Master mode
+│   ├── boxes.md                      search, open, create, edit, and soft-delete boxes
+│   ├── buildings.md                  the building list
+│   ├── categories.md                 the category list
 │   └── dashboard.md                  GET /api/dashboard
 └── Imp.Api/                          the web API project
     ├── Program.cs                    startup: registers services and sets up request handling
@@ -96,13 +95,14 @@ Use the address that matches where the app is running:
 
 | App running on | Backend address |
 |---|---|
-| Chrome or Linux desktop | `http://localhost:5000` |
+| Chrome | `http://localhost:5000` |
 | Android emulator | `http://10.0.2.2:5000` |
 | A real tablet on the same Wi-Fi | `http://<this computer's IP>:5000` (also change `localhost` to `0.0.0.0` in `launchSettings.json`) |
+| An Android phone plugged in by USB | `http://localhost:5000`, after running `adb reverse tcp:5000 tcp:5000` |
 
-Keep the address in one setting in the app, because it changes when the real server is set up.
+The app chooses the address when it starts, with `--dart-define=API_BASE_URL=...` (D-158). The commands are in IMP-Front's README.
 
-**Android blocks plain HTTP by default.** Add `android:usesCleartextTraffic="true"` to the `<application>` tag in IMP-Front's `android/app/src/debug/AndroidManifest.xml`.
+**Plain HTTP works on Android.** The app uses Dart's `http` package, which doesn't go through Android's block on plain HTTP, so no `usesCleartextTraffic` setting is needed. The release build uses HTTPS.
 
 **Chrome:** the API allows requests from any web page while in Development mode (CORS), so `flutter run -d chrome` works. Other platforms do not need this.
 
@@ -231,7 +231,7 @@ The API runs on plain HTTP while we develop on our own computers (decision D-136
 | `NETSDK1226: Prune Package data not found` (Arch Linux) | Install `aspnet-runtime` and `aspnet-targeting-pack` (see Setup). |
 | `address already in use` on port 5000 (Mac) | Turn off AirPlay Receiver in System Settings, General, AirDrop & Handoff. |
 | Flutter in Chrome shows a CORS error | Check the API is running in Development mode (`dotnet run` does this). |
-| Android app cannot reach the API | Use `10.0.2.2` instead of `localhost` on the emulator, and add the cleartext setting above. |
+| Android app cannot reach the API | On the emulator, start the app with `--dart-define=API_BASE_URL=http://10.0.2.2:5000`. On a real device, see the address table above. |
 
 ## Claude prompt logs
 
