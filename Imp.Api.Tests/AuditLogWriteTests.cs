@@ -1,4 +1,3 @@
-using System.Data;
 using System.Text.Json;
 using Dapper;
 using Imp.Api.Data;
@@ -620,29 +619,17 @@ public class AuditLogWriteTests {
         Assert.Equal(new[] { "before", "after" }, rows.Select(r => r.TargetLabel));
     }
 
-    // With no transaction, the entry is saved straight away.
+    // The transaction is required. Passing null throws before anything is written,
+    // so an entry can never be saved outside the change it records.
     [DatabaseFact]
-    public async Task NoTransaction_SavesImmediately() {
+    public async Task NullTransaction_Throws() {
         await using var db = await TestDatabase.CreateAsync();
         var other = await db.OpenAnotherAsync();
 
-        await AuditLog.WriteAsync(db.Connection, db.NewEntry());
+        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(db.Connection, db.NewEntry(), null!));
 
-        Assert.Single(await db.RowsAsync(on: other));
-    }
-
-    // If the connection has a transaction open and the caller forgets to pass it in,
-    // MySqlConnector throws. It does not quietly write the entry outside the transaction,
-    // which would break the "both or neither" guarantee.
-    [DatabaseFact]
-    public async Task TransactionOpenButNotPassedIn_Throws() {
-        await using var db = await TestDatabase.CreateAsync();
-        await db.BeginAsync();
-
-        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(db.Connection, db.NewEntry()));
-
-        Assert.IsAssignableFrom<InvalidOperationException>(exception);
-        Assert.Empty(await db.RowsAsync());
+        Assert.IsType<ArgumentNullException>(exception);
+        Assert.Empty(await db.RowsAsync(on: other));
     }
 
     // A transaction that belongs to a different connection is refused.
@@ -675,17 +662,15 @@ public class AuditLogWriteTests {
 
     // Bad input and broken connections
 
-    // No entry at all is an error. (WriteAsync is not an async method, so today this throws
-    // right away instead of returning a failed Task. This test accepts either.
-    // An ArgumentNullException would be a clearer error than the NullReferenceException you get now.)
+    // No entry at all is an error.
     [DatabaseFact]
     public async Task NullEntry_Throws() {
         await using var db = await TestDatabase.CreateAsync();
         await db.BeginAsync();
 
-        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(db.Connection, null!, db.Transaction));
+        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(db.Connection, null!, db.Transaction!));
 
-        Assert.NotNull(exception);
+        Assert.IsType<ArgumentNullException>(exception);
         Assert.Empty(await db.RowsAsync());
     }
 
@@ -693,23 +678,11 @@ public class AuditLogWriteTests {
     [DatabaseFact]
     public async Task NullConnection_Throws() {
         await using var db = await TestDatabase.CreateAsync();
+        await db.BeginAsync();
 
-        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(null!, db.NewEntry()));
+        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(null!, db.NewEntry(), db.Transaction!));
 
-        Assert.NotNull(exception);
-    }
-
-    // A closed connection is fine: Dapper opens it for the insert and closes it again.
-    [DatabaseFact]
-    public async Task ClosedConnection_IsOpenedForTheWriteAndClosedAgain() {
-        await using var db = await TestDatabase.CreateAsync();
-        var other = await db.OpenAnotherAsync();
-        await db.Connection.CloseAsync();
-
-        await AuditLog.WriteAsync(db.Connection, db.NewEntry());
-
-        Assert.Equal(ConnectionState.Closed, db.Connection.State);
-        Assert.Single(await db.RowsAsync(on: other));
+        Assert.IsType<ArgumentNullException>(exception);
     }
 
     // A connection that has been disposed cannot be used, and the error is not swallowed.
@@ -718,9 +691,10 @@ public class AuditLogWriteTests {
         await using var db = await TestDatabase.CreateAsync();
         var other = await db.OpenAnotherAsync();
         var doomed = await db.OpenAnotherAsync();
+        var doomedTransaction = await db.BeginOnAsync(doomed);
         await doomed.DisposeAsync();
 
-        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(doomed, db.NewEntry()));
+        var exception = await Record.ExceptionAsync(() => AuditLog.WriteAsync(doomed, db.NewEntry(), doomedTransaction));
 
         Assert.NotNull(exception);
         Assert.Empty(await db.RowsAsync(on: other));
@@ -734,9 +708,10 @@ public class AuditLogWriteTests {
         var other = await db.OpenAnotherAsync();
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
+        await db.BeginAsync();
 
         var exception = await Record.ExceptionAsync(
-            () => AuditLog.WriteAsync(db.Connection, db.NewEntry(), null, cancelled.Token));
+            () => AuditLog.WriteAsync(db.Connection, db.NewEntry(), db.Transaction!, cancelled.Token));
 
         Assert.True(exception is OperationCanceledException or MySqlException,
             $"Expected a cancellation error but got: {exception?.GetType().Name ?? "no error"}");
@@ -752,9 +727,11 @@ public class AuditLogWriteTests {
 
         await Task.WhenAll(Enumerable.Range(0, 50).Select(async i => {
             await using var connection = await factory.OpenConnectionAsync();
+            await using var transaction = await connection.BeginTransactionAsync();
             var entry = db.NewEntry();
             entry.TargetLabel = $"parallel-{i}";
-            await AuditLog.WriteAsync(connection, entry);
+            await AuditLog.WriteAsync(connection, entry, transaction);
+            await transaction.CommitAsync();
         }));
 
         var rows = await db.RowsAsync();

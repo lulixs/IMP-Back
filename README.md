@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). It doesn't check the session token yet (D-164). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) isn't built yet either.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). It doesn't check the session token yet (D-164). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Nothing calls it yet.
 
 ## Who does what
 
@@ -72,13 +72,17 @@ IMP-Back/
 │   │   ├── HealthController.cs       GET /api/health and GET /api/health/database
 │   │   └── DashboardController.cs    GET /api/dashboard
 │   ├── Data/                         database access code
+│   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
+│   │   ├── AuditAction.cs            the nine audit actions, named as in schema.sql
+│   │   ├── AuditTarget.cs            the five audit targets, named as in schema.sql
 │   │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
 │   │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
 │   │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
-|   ├── Errors/
-|   │   └── ApiError.cs               exception that sends a status code and message to the app
-|   ├── logs/                         error log files (not committed)
+│   ├── Errors/
+│   │   └── ApiError.cs               exception that sends a status code and message to the app
+│   ├── logs/                         error log files, one per day (not committed)
 │   ├── Models/                       C# classes that query results are turned into
+│   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
@@ -89,6 +93,12 @@ IMP-Back/
 │   └── Imp.Api.csproj                .NET version and packages
 └── Imp.Api.Tests/                    xUnit tests for Imp.Api
     ├── PasswordHasherTests.cs        tests for BcryptPasswordHasher, using copies of the sample data hashes
+    ├── AuditEntryTests.cs            tests for the AuditEntry class
+    ├── AuditLogMatchTests.cs         every action and target pair against the ERD's list
+    ├── AuditLogSchemaTests.cs        the enums match schema.sql's ENUM columns (needs the database)
+    ├── AuditLogWriteTests.cs         AuditLog.WriteAsync against MySQL (needs the database)
+    ├── TestDatabase.cs               gives each database test its own employee, tablet, and cleanup
+    ├── Support/ErdRules.cs           the ERD's table of allowed audit pairs, for the tests
     └── Imp.Api.Tests.csproj          test packages and a reference to Imp.Api
 ```
 
@@ -100,7 +110,7 @@ From the repo folder:
 dotnet test
 ```
 
-This builds both projects and runs every test in `Imp.Api.Tests/`. The tests do not need Docker or the database. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
+This builds both projects and runs every test in `Imp.Api.Tests/`. Start the database first (see [Database setup](#database-setup)): the audit log tests write to it. If it isn't running, those tests are skipped with a message, not failed, so check the skipped count before a pull request. They are safe to run against your sample data. Each test makes its own employee and tablet with random names and removes everything it added. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
 
 The hashes in `PasswordHasherTests.cs` are copies of the ones in `db/sample_data.sql`. If the sample PINs or hashes change, update the test file too.
 
@@ -116,6 +126,48 @@ Each endpoint's JSON shape is written in `docs/api/` before the endpoint is buil
 4. ASP.NET Core turns the result into JSON and sends it back.
 
 To add an endpoint, add a method to a controller (or a new class in `Controllers/` whose name ends in `Controller`). It shows up in Swagger automatically.
+
+## Errors and logging
+
+Every error leaves the API in the shared JSON shape from [docs/api/README.md](docs/api/README.md), and every error is written to the log.
+
+### Sending an error from your code
+
+To report a problem the caller should know about, throw an `ApiError` (`Imp.Api/Errors/ApiError.cs`):
+
+```csharp
+throw ApiError.NotFound("This box doesn't exist.");                                  // 404
+throw ApiError.BadRequest("Enter a shelf level from 1 to 3.");                       // 400
+throw ApiError.Unauthorized("Your session has ended. Sign in again.", "sessionEnded"); // 401 with a code
+throw new ApiError(422, "...");                                                      // any other status
+```
+
+Shortcuts exist for 400, 401, 403, 404, and 409. The caller gets that status and `{"error": "..."}`, plus `"code"` only when one is passed. Copy the sentence and code exactly from the endpoint's contract. **The message is sent to the app, so never put secrets, SQL, or table names in it.** Throw `ApiError` rather than returning `NotFound()` or `BadRequest()` with no body, which would get a general sentence instead of the contract's.
+
+### Everything else
+
+- **Any other exception** (a database error, a bug) returns 500 with `{"error": "Something went wrong. Please try again later.", "traceId": "..."}`. The real error is never sent to the app. To find it, search the log for the `traceId`.
+- **Bad request bodies** (unreadable JSON, wrong shape, missing body) return 400 with "The request body is invalid.", set by `InvalidModelStateResponseFactory` in `Program.cs`.
+- **Errors the framework makes with no body,** such as 404 for an unknown URL or 405 for the wrong method, get the same JSON shape from `UseStatusCodePages` in `Program.cs`.
+- If the caller disconnects mid-request, nothing is logged as an error.
+
+### Where the logs are
+
+| Where | What it contains |
+|---|---|
+| The terminal running `dotnet run` | Everything (information, warnings, and errors) |
+| `Imp.Api/logs/imp-YYYYMMDD.log` | Warnings and errors only, with full exception details |
+
+- One file per day, and the 30 most recent days are kept (D-182).
+- An `ApiError` below 500 is logged as a warning. Status 500 and above, and any other exception, are logged as errors.
+- Each entry has the request method, path, status code, and `traceId`, followed by the exception and its stack trace.
+- `*.log` is in `.gitignore`. **Never commit log files or put them on a public web path,** because they contain internal details such as SQL and table names.
+- On the real server, the account running the API needs permission to write to `Imp.Api/logs/`.
+
+### How it is built
+
+- The error handler is the first `app.Use(...)` block in `Program.cs`. It must stay first so it catches errors from everything after it.
+- Logging uses [Serilog](https://serilog.net/) (the `Serilog.AspNetCore` package), set up at the top of `Program.cs`.
 
 ## Calling the API from the Flutter app
 

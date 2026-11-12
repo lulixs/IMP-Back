@@ -18,7 +18,7 @@ builder.Host.UseSerilog((context, services, config) => config
         restrictedToMinimumLevel: LogEventLevel.Warning,
         rollingInterval: RollingInterval.Day,
         retainedFileCountLimit: 30
-	)
+    )
 );
 
 // Add services to the container.
@@ -28,7 +28,7 @@ builder.Services.AddSingleton<IDbConnectionFactory>(new MySqlConnectionFactory(c
 builder.Services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
 builder.Services.AddControllers()
-	.ConfigureApiBehaviorOptions(options => {
+    .ConfigureApiBehaviorOptions(options => {
         // Weird errors become a normal ApiError
         options.InvalidModelStateResponseFactory = _ =>
             throw new ApiError(StatusCodes.Status400BadRequest, "The request body is invalid.");
@@ -59,23 +59,35 @@ app.Use(async (context, next) => {
             "{Method} {Path} failed with {Status} (trace {TraceId})",
             context.Request.Method, context.Request.Path, status, traceId);
 
-		// Too late to change the response
-        if (context.Response.HasStarted) throw; 
+        // Too late to change the response
+        if (context.Response.HasStarted) throw;
 
         context.Response.StatusCode = status;
 
-		if (apiError is not null) {
-			await context.Response.WriteAsJsonAsync(new { error = apiError.Message, code = apiError.Code });
-		} else {
-			await context.Response.WriteAsJsonAsync(new {
-				error = "Something went wrong. Please try again later.",
-				traceId
-			});
-		}
-	}
+        // code is left out entirely when there isn't one (docs/api/README.md)
+        if (apiError is null) {
+            await context.Response.WriteAsJsonAsync(new {
+                error = "Something went wrong. Please try again later.",
+                traceId
+            });
+        } else if (apiError.Code is null) {
+            await context.Response.WriteAsJsonAsync(new { error = apiError.Message });
+        } else {
+            await context.Response.WriteAsJsonAsync(new { error = apiError.Message, code = apiError.Code });
+        }
+    }
 });
 
-app.UseStatusCodePages();
+// Errors the framework sends with no body (an unknown URL, the wrong method) get the same JSON shape.
+app.UseStatusCodePages(async statusContext => {
+    var response = statusContext.HttpContext.Response;
+    var error = response.StatusCode switch {
+        StatusCodes.Status404NotFound => "This address doesn't exist on the server.",
+        StatusCodes.Status405MethodNotAllowed => "This address doesn't accept this kind of request.",
+        _ => "The request couldn't be completed."
+    };
+    await response.WriteAsJsonAsync(new { error });
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

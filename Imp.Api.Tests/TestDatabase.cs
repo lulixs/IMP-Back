@@ -160,8 +160,9 @@ public sealed class TestDatabase : IAsyncDisposable {
         Details = null
     };
 
-    // Shorthand for AuditLog.WriteAsync on this test's connection and transaction.
-    public Task WriteAsync(AuditEntry entry) => AuditLog.WriteAsync(Connection, entry, Transaction);
+    // Shorthand for AuditLog.WriteAsync on this test's connection and transaction. Call BeginAsync first.
+    public Task WriteAsync(AuditEntry entry) =>
+        AuditLog.WriteAsync(Connection, entry, Transaction ?? throw new InvalidOperationException("Call BeginAsync first."));
 
     // Reading
 
