@@ -176,4 +176,4 @@ INSERT INTO AUDIT_LOG (timestamp, employee_id, is_elevated, device_id, action_ty
 (NOW() - INTERVAL 1 DAY,   1, FALSE, 1, 'ADDED',       'BOX',      18, '#18',                  NULL),
 (NOW() - INTERVAL 1 DAY,   1, FALSE, 1, 'DELETED',     'BOX',      20, '#20',                  NULL),
 (NOW() - INTERVAL 3 HOUR,  2, TRUE,  2, 'ADDED',       'CATEGORY', 9,  'Fall Decor',           NULL),
-(NOW() - INTERVAL 2 HOUR,  2, TRUE,  2, 'EDITED',      'MASTER',   1,  'Alert threshold',      '{"field": "alert_threshold_days", "from": 120, "to": 180}');
+(NOW() - INTERVAL 2 HOUR,  2, TRUE,  2, 'EDITED',      'MASTER',   1,  'Master account',       '{"field": "alert_threshold_days", "from": 120, "to": 180}');

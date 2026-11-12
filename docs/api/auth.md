@@ -29,7 +29,7 @@ Each request carries one token, as `Authorization: Bearer <token>` (D-164):
 
 ## Errors
 
-Errors use the shared format in [README.md](README.md) (D-165). Each endpoint below lists its own errors. These can come back from any request that carries a token, and have a `code` because the app has to leave the current screen (D-168). `ApiClient` handles them for every request.
+Errors use the shared format in [README.md](README.md) (D-165). Each endpoint below lists its own errors. These can come back from requests that carry a token (`deviceExpired` only with the device token, `sessionEnded` only with the session token), and have a `code` because the app has to leave the current screen (D-168). `ApiClient` handles them for every request.
 
 | Status | When | `error` | `code` | What the app does |
 |---|---|---|---|---|
