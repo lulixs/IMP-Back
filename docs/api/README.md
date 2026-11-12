@@ -10,7 +10,7 @@ Each file in this folder is the contract for one area of the API: the exact JSON
 | [categories.md](categories.md) | The category list (adding, editing, and deleting still to be written) |
 | [dashboard.md](dashboard.md) | `GET /api/dashboard` |
 
-This file holds the rules every contract shares.
+This file holds the rules every contract shares. The health checks (`GET /api/health` and `GET /api/health/database`) are developer tools the app doesn't call, so they're documented in the repo README instead, and their 503 reply isn't in the error shape below.
 
 ## JSON
 
@@ -34,6 +34,7 @@ Every error, from every endpoint, has the same shape (D-165):
 |---|---|---|
 | `error` | string | One sentence a person can read, shown as it is on the screen. Ends with a period. Never contains stack traces, SQL, or other server details |
 | `code` | string, optional | A fixed word the app acts on. Only sent on the errors below that need the app to leave the current screen (D-168). Left out everywhere else |
+| `traceId` | string, 500 only | An id for the request, also written in the server's log next to the real error, so a reported 500 can be found there. The app ignores it (D-181). Left out on every other status |
 
 ### Status codes
 
@@ -44,13 +45,13 @@ Every error, from every endpoint, has the same shape (D-165):
 | 403 | Signed in, but the endpoint needs Master mode | Turn on Master mode first. |
 | 404 | The thing asked for doesn't exist | This box doesn't exist. |
 | 409 | Conflict: a duplicate name, or a delete that is blocked | A tablet with this name already exists. Choose another name. |
-| 500 | Something broke on the server | Something went wrong on the server. |
+| 500 | Something broke on the server | Something went wrong. Please try again later. |
 
-Each contract lists its own errors with their exact sentences. A 500 always uses the sentence above, and the details go to the server's console log, never to the app.
+Each contract lists its own errors with their exact sentences. A 500 always uses the sentence above and adds a `traceId`, and the details go to the server's log, never to the app.
 
 ### Codes
 
-These four can come back from any request that carries a token. The app's `ApiClient` handles them in one place, before any screen sees the error. Details are in [auth.md](auth.md).
+These can come back from requests that carry a token (`deviceExpired` only with the device token, `sessionEnded` only with the session token). The app's `ApiClient` handles them in one place, before any screen sees the error. Details are in [auth.md](auth.md).
 
 | `code` | Status | What the app does |
 |---|---|---|
@@ -74,6 +75,6 @@ Only add a new code when the app has to do something other than show the sentenc
 So every error comes out in this shape, including the ones ASP.NET Core makes on its own:
 
 - Code that hits a known problem throws `ApiError` with a status, a sentence, and an optional code, for example `throw new ApiError(409, "A tablet with this name already exists. Choose another name.")`.
-- One exception handler in `Program.cs` turns an `ApiError` into its status and JSON body. Any other exception becomes a 500 with "Something went wrong on the server.", and the exception is written to the console.
+- One exception handler in `Program.cs` turns an `ApiError` into its status and JSON body. Any other exception becomes a 500 with "Something went wrong. Please try again later." and a `traceId`, and the exception is written to the server's log with the same `traceId`. The log goes to the console, and warnings and errors also go to daily files in `Imp.Api/logs/` (D-182).
 - The automatic 400 from `[ApiController]` (its `InvalidModelStateResponseFactory`) is replaced, so bad input and unreadable JSON use this shape too.
 - Status codes with no body from the framework (for example 404 for an unknown URL or 405 for the wrong method) are given this shape as well, for example with `UseStatusCodePages`.

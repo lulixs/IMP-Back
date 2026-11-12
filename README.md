@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) isn't built yet either.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). It doesn't check the session token yet (D-164). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) isn't built yet either.
 
 ## Who does what
 
@@ -49,6 +49,7 @@ IMP-Back/
 ├── README.md
 ├── CLAUDE.md                         points Claude Code to this README
 ├── .gitignore
+├── .vscode/extensions.json           the VS Code extensions to install (C# Dev Kit)
 ├── global.json                       pins the .NET SDK to 10.0.x
 ├── IMP-Back.slnx                     the solution file, which lists both projects so dotnet test finds them
 ├── .claude/                          the prompt-logging hook (see Claude prompt logs)
