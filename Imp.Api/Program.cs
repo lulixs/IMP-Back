@@ -2,6 +2,7 @@ using Imp.Api.Data;
 using Imp.Api.Errors;
 using Serilog;
 using Serilog.Events;
+using Imp.Api.Security;
 
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
@@ -24,6 +25,7 @@ builder.Host.UseSerilog((context, services, config) => config
 var connectionString = builder.Configuration.GetConnectionString("IMP")
     ?? throw new InvalidOperationException("Connection string 'IMP' was not found. Check Imp.Api/appsettings.Development.json.");
 builder.Services.AddSingleton<IDbConnectionFactory>(new MySqlConnectionFactory(connectionString));
+builder.Services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
 builder.Services.AddControllers()
 	.ConfigureApiBehaviorOptions(options => {

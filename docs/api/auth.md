@@ -23,13 +23,13 @@ Each request carries one token, as `Authorization: Bearer <token>` (D-164):
 
 | Token | Endpoints |
 |---|---|
-| None | `GET /api/setup/status`, `POST /api/setup`, `POST /api/devices` |
+| None | `GET /api/setup/status`, `POST /api/setup`, `POST /api/devices`, and the health checks `GET /api/health` and `GET /api/health/database` |
 | Device token | `POST /api/devices/renew` (expired is fine, see that endpoint), `GET /api/employees/active`, `POST /api/sessions` |
 | Session token | Everything else, in this file and every other contract |
 
 ## Errors
 
-Errors use the shared format in [README.md](README.md) (D-165). Each endpoint below lists its own errors. These can come back from any request that carries a token, and have a `code` because the app has to leave the current screen (D-168). `ApiClient` handles them for every request.
+Errors use the shared format in [README.md](README.md) (D-165). Each endpoint below lists its own errors. These can come back from requests that carry a token (`deviceExpired` only with the device token, `sessionEnded` only with the session token), and have a `code` because the app has to leave the current screen (D-168). `ApiClient` handles them for every request.
 
 | Status | When | `error` | `code` | What the app does |
 |---|---|---|---|---|

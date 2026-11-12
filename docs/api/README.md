@@ -10,7 +10,7 @@ Each file in this folder is the contract for one area of the API: the exact JSON
 | [categories.md](categories.md) | The category list (adding, editing, and deleting still to be written) |
 | [dashboard.md](dashboard.md) | `GET /api/dashboard` |
 
-This file holds the rules every contract shares.
+This file holds the rules every contract shares. The health checks (`GET /api/health` and `GET /api/health/database`) are developer tools the app doesn't call, so they're documented in the repo README instead, and their 503 reply isn't in the error shape below.
 
 ## JSON
 
@@ -34,6 +34,7 @@ Every error, from every endpoint, has the same shape (D-165):
 |---|---|---|
 | `error` | string | One sentence a person can read, shown as it is on the screen. Ends with a period. Never contains stack traces, SQL, or other server details |
 | `code` | string, optional | A fixed word the app acts on. Only sent on the errors below that need the app to leave the current screen (D-168). Left out everywhere else |
+| `traceId` | string, 500 only | An id for the request, also written in the server's log next to the real error, so a reported 500 can be found there. The app ignores it (D-181). Left out on every other status |
 
 ### On the server
 
@@ -109,13 +110,13 @@ If the app sends JSON that does not match what an endpoint expects (malformed, w
 | 403 | Signed in, but the endpoint needs Master mode | Turn on Master mode first. |
 | 404 | The thing asked for doesn't exist | This box doesn't exist. |
 | 409 | Conflict: a duplicate name, or a delete that is blocked | A tablet with this name already exists. Choose another name. |
-| 500 | Something broke on the server | Something went wrong on the server. |
+| 500 | Something broke on the server | Something went wrong. Please try again later. |
 
-Each contract lists its own errors with their exact sentences. A 500 always uses the sentence above, and the details go to the server's console log, never to the app.
+Each contract lists its own errors with their exact sentences. A 500 always uses the sentence above and adds a `traceId`, and the details go to the server's log, never to the app.
 
 ##### Codes
 
-These four can come back from any request that carries a token. The app's `ApiClient` handles them in one place, before any screen sees the error. Details are in [auth.md](auth.md).
+These can come back from requests that carry a token (`deviceExpired` only with the device token, `sessionEnded` only with the session token). The app's `ApiClient` handles them in one place, before any screen sees the error. Details are in [auth.md](auth.md).
 
 | `code` | Status | What the app does |
 |---|---|---|
