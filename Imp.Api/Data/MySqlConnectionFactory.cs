@@ -1,7 +1,7 @@
-namespace Imp.Api.Data;
-
 using System.Data.Common;
 using MySqlConnector;
+
+namespace Imp.Api.Data;
 
 public class MySqlConnectionFactory : IDbConnectionFactory {
     private readonly string _connectionString;

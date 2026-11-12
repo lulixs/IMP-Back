@@ -8,7 +8,7 @@ namespace Imp.Api.Controllers;
 [ApiController]
 [Route("api/dashboard")]
 public class DashboardController : ControllerBase {
-    private readonly IDbConnectionFactory db;
+	private readonly IDbConnectionFactory db;
 
     public DashboardController(IDbConnectionFactory db) {
         this.db = db;

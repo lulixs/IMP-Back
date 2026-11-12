@@ -1,6 +1,6 @@
-namespace Imp.Api.Data;
-
 using System.Data.Common;
+
+namespace Imp.Api.Data;
 
 // Creates database connections
 public interface IDbConnectionFactory {
