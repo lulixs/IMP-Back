@@ -16,21 +16,22 @@ builder.Host.UseSerilog((context, services, config) => config
         Path.Combine(context.HostingEnvironment.ContentRootPath, "logs", "imp-.log"),
         restrictedToMinimumLevel: LogEventLevel.Warning,
         rollingInterval: RollingInterval.Day,
-        retainedFileCountLimit: 30));
-
-builder.Services.AddControllers()
-    .ConfigureApiBehaviorOptions(options => {
-        // Weird errors become a normal ApiError
-        options.InvalidModelStateResponseFactory = _ =>
-            throw new ApiError(StatusCodes.Status400BadRequest, "The request body is invalid.");
-    });
+        retainedFileCountLimit: 30
+	)
+);
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("IMP")
     ?? throw new InvalidOperationException("Connection string 'IMP' was not found. Check Imp.Api/appsettings.Development.json.");
 builder.Services.AddSingleton<IDbConnectionFactory>(new MySqlConnectionFactory(connectionString));
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+	.ConfigureApiBehaviorOptions(options => {
+        // Weird errors become a normal ApiError
+        options.InvalidModelStateResponseFactory = _ =>
+            throw new ApiError(StatusCodes.Status400BadRequest, "The request body is invalid.");
+    }
+);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -62,7 +63,7 @@ app.Use(async (context, next) => {
         context.Response.StatusCode = status;
 
 		if (apiError is not null) {
-			await context.Response.WriteAsJsonAsync(new { error = apiError.Message });
+			await context.Response.WriteAsJsonAsync(new { error = apiError.Message, code = apiError.Code });
 		} else {
 			await context.Response.WriteAsJsonAsync(new {
 				error = "Something went wrong. Please try again later.",
@@ -71,6 +72,8 @@ app.Use(async (context, next) => {
 		}
 	}
 });
+
+app.UseStatusCodePages();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
