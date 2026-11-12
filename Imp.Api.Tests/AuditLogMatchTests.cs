@@ -97,8 +97,6 @@ public class AuditLogMatchTests {
 
     // A number that is not one of the nine actions must never be allowed, for any target.
     // The ERD says the backend rejects every pairing it does not list.
-    // Note: the BOX rule is written as "anything except ACTIVATED or DEACTIVATED",
-    // so an undefined action slips through for boxes. If this fails for BOX, that is why.
     [Theory]
     [InlineData(-1)]
     [InlineData(9)]

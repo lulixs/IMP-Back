@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). It doesn't check the session token yet (D-164). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) isn't built yet either.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). It doesn't check the session token yet (D-164). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for sign-in ([docs/api/auth.md](docs/api/auth.md)), boxes ([docs/api/boxes.md](docs/api/boxes.md)), and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) isn't built yet either. The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Nothing calls it yet.
 
 ## Who does what
 
@@ -72,10 +72,14 @@ IMP-Back/
 │   │   ├── HealthController.cs       GET /api/health and GET /api/health/database
 │   │   └── DashboardController.cs    GET /api/dashboard
 │   ├── Data/                         database access code
+│   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
+│   │   ├── AuditAction.cs            the nine audit actions, named as in schema.sql
+│   │   ├── AuditTarget.cs            the five audit targets, named as in schema.sql
 │   │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
 │   │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
 │   │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
 │   ├── Models/                       C# classes that query results are turned into
+│   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
@@ -86,6 +90,12 @@ IMP-Back/
 │   └── Imp.Api.csproj                .NET version and packages
 └── Imp.Api.Tests/                    xUnit tests for Imp.Api
     ├── PasswordHasherTests.cs        tests for BcryptPasswordHasher, using copies of the sample data hashes
+    ├── AuditEntryTests.cs            tests for the AuditEntry class
+    ├── AuditLogMatchTests.cs         every action and target pair against the ERD's list
+    ├── AuditLogSchemaTests.cs        the enums match schema.sql's ENUM columns (needs the database)
+    ├── AuditLogWriteTests.cs         AuditLog.WriteAsync against MySQL (needs the database)
+    ├── TestDatabase.cs               gives each database test its own employee, tablet, and cleanup
+    ├── Support/ErdRules.cs           the ERD's table of allowed audit pairs, for the tests
     └── Imp.Api.Tests.csproj          test packages and a reference to Imp.Api
 ```
 
@@ -97,7 +107,7 @@ From the repo folder:
 dotnet test
 ```
 
-This builds both projects and runs every test in `Imp.Api.Tests/`. The tests do not need Docker or the database. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
+This builds both projects and runs every test in `Imp.Api.Tests/`. Start the database first (see [Database setup](#database-setup)): the audit log tests write to it. If it isn't running, those tests are skipped with a message, not failed, so check the skipped count before a pull request. They are safe to run against your sample data. Each test makes its own employee and tablet with random names and removes everything it added. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
 
 The hashes in `PasswordHasherTests.cs` are copies of the ones in `db/sample_data.sql`. If the sample PINs or hashes change, update the test file too.
 
