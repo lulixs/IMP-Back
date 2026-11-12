@@ -1,9 +1,25 @@
 using Imp.Api.Data;
+using Imp.Api.Errors;
+using Serilog;
+using Serilog.Events;
 using Imp.Api.Security;
 
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Set up the error logger
+builder.Host.UseSerilog((context, services, config) => config
+    .MinimumLevel.Information()
+    .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+    .WriteTo.Console()
+    .WriteTo.File(
+        Path.Combine(context.HostingEnvironment.ContentRootPath, "logs", "imp-.log"),
+        restrictedToMinimumLevel: LogEventLevel.Warning,
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30
+    )
+);
 
 // Add services to the container.
 var connectionString = builder.Configuration.GetConnectionString("IMP")
@@ -11,7 +27,13 @@ var connectionString = builder.Configuration.GetConnectionString("IMP")
 builder.Services.AddSingleton<IDbConnectionFactory>(new MySqlConnectionFactory(connectionString));
 builder.Services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .ConfigureApiBehaviorOptions(options => {
+        // Weird errors become a normal ApiError
+        options.InvalidModelStateResponseFactory = _ =>
+            throw new ApiError(StatusCodes.Status400BadRequest, "The request body is invalid.");
+    }
+);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
@@ -19,6 +41,53 @@ builder.Services.AddCors(o => o.AddPolicy("Dev", p =>
     p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
+
+// Error handler: must stay first so it catches errors from everything below it.
+app.Use(async (context, next) => {
+    try {
+        await next();
+    } catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested) {
+        // Caller disconnected, no one to give error to
+    } catch (Exception ex) {
+        var traceId = context.TraceIdentifier;
+        var apiError = ex as ApiError;
+        var status = apiError?.StatusCode ?? StatusCodes.Status500InternalServerError;
+
+        // Log real exception with stack trace
+        app.Logger.Log(
+            status >= 500 ? LogLevel.Error : LogLevel.Warning, ex,
+            "{Method} {Path} failed with {Status} (trace {TraceId})",
+            context.Request.Method, context.Request.Path, status, traceId);
+
+        // Too late to change the response
+        if (context.Response.HasStarted) throw;
+
+        context.Response.StatusCode = status;
+
+        // code is left out entirely when there isn't one (docs/api/README.md)
+        if (apiError is null) {
+            await context.Response.WriteAsJsonAsync(new {
+                error = "Something went wrong. Please try again later.",
+                traceId
+            });
+        } else if (apiError.Code is null) {
+            await context.Response.WriteAsJsonAsync(new { error = apiError.Message });
+        } else {
+            await context.Response.WriteAsJsonAsync(new { error = apiError.Message, code = apiError.Code });
+        }
+    }
+});
+
+// Errors the framework sends with no body (an unknown URL, the wrong method) get the same JSON shape.
+app.UseStatusCodePages(async statusContext => {
+    var response = statusContext.HttpContext.Response;
+    var error = response.StatusCode switch {
+        StatusCodes.Status404NotFound => "This address doesn't exist on the server.",
+        StatusCodes.Status405MethodNotAllowed => "This address doesn't accept this kind of request.",
+        _ => "The request couldn't be completed."
+    };
+    await response.WriteAsJsonAsync(new { error });
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
