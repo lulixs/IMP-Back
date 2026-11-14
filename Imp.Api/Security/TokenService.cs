@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
@@ -25,6 +26,9 @@ public sealed class TokenService {
     // There is no issuer or audience, since this server is the only one that makes or reads these tokens.
     public TokenValidationParameters ValidationParameters { get; }
 
+    // The same checks without exp, for POST /api/devices/renew only.
+    private readonly TokenValidationParameters ignoringExpiry;
+
     // clock is only passed by tests, to make tokens that are already expired.
     public TokenService(string secret, TimeProvider? clock = null) {
         if (string.IsNullOrWhiteSpace(secret) || secret.Length < MinimumSecretLength) {
@@ -48,6 +52,9 @@ public sealed class TokenService {
             // The server makes and checks every token with its own clock, so no extra minutes are allowed.
             ClockSkew = TimeSpan.Zero,
         };
+
+        ignoringExpiry = ValidationParameters.Clone();
+        ignoringExpiry.ValidateLifetime = false;
     }
 
     // Sent to a tablet by POST /api/setup, POST /api/devices, and POST /api/devices/renew.
@@ -66,6 +73,20 @@ public sealed class TokenService {
             [TokenClaims.EmployeeId] = employeeId.ToString(CultureInfo.InvariantCulture),
             [TokenClaims.DeviceId] = deviceId,
         });
+    }
+
+    // For POST /api/devices/renew, which takes a device token whether or not it has expired (auth.md).
+    // Checks the signature and that it is a device token, but not exp. Returns the tablet's id,
+    // or null if the token is missing, not ours, changed, or a session token.
+    public async Task<int?> ReadDeviceIdIgnoringExpiryAsync(string? token) {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+
+        var result = await handler.ValidateTokenAsync(token, ignoringExpiry);
+        if (!result.IsValid) return null;
+
+        var user = new ClaimsPrincipal(result.ClaimsIdentity);
+        if (user.FindFirst(TokenClaims.Kind)?.Value != TokenClaims.DeviceKind) return null;
+        return user.GetDeviceId();
     }
 
     private string Create(TimeSpan lifetime, Dictionary<string, object> claims) {
