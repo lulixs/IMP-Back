@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, and `GET /api/dashboard`, the first endpoint that reads real data. Its JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md). It doesn't check the session token yet (D-164). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Sign-in tokens are built: `TokenService` makes the device and session tokens, and the `Device` and `Session` policies check them against the database and send the 401 codes in [docs/api/auth.md](docs/api/auth.md). No endpoint uses the policies yet, and the sign-in endpoints in auth.md are not built yet. Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Nothing calls it yet.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), and tablet setup (`POST /api/devices` and `POST /api/devices/renew`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it doesn't check the session token yet (D-164). Sign-in tokens are built (see [docs/api/auth.md](docs/api/auth.md)), and the rest of auth.md (employee sign-in, sign-out, and Master mode) is next. The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. `POST /api/setup` is the first endpoint to use it.
 
 ## Who does what
 
@@ -59,6 +59,7 @@ IMP-Back/
 │   ├── docker-compose.yml            how Docker runs MySQL (port 3307, login imp / imp)
 │   ├── schema.sql                    creates the tables, from ERD v2.6
 │   ├── sample_data.sql               test data for your computer only
+│   ├── clear_data.sql                empties every table, to test first-time setup
 │   └── DOCKER_GUIDE.md               step-by-step Docker help for Windows
 ├── docs/api/                         the JSON each endpoint returns, agreed with the Flutter side
 │   ├── README.md                     rules every contract shares: JSON, tokens, and the error format
@@ -71,12 +72,15 @@ IMP-Back/
 │   ├── Program.cs                    startup: registers services and sets up request handling
 │   ├── Controllers/                  one class per area, each method handles one URL
 │   │   ├── HealthController.cs       GET /api/health and GET /api/health/database
+│   │   ├── SetupController.cs        GET /api/setup/status and POST /api/setup (first-time setup)
+│   │   ├── DevicesController.cs      POST /api/devices (set up a tablet) and POST /api/devices/renew
 │   │   └── DashboardController.cs    GET /api/dashboard
 │   ├── Data/                         database access code
 │   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
 │   │   ├── AuditAction.cs            the nine audit actions, named as in schema.sql
 │   │   ├── AuditTarget.cs            the five audit targets, named as in schema.sql
 │   │   ├── IDbConnectionFactory.cs   what controllers ask for to get a database connection
+│   │   ├── MasterAccount.cs          whether the store is set up, and checking the Master email and password
 │   │   ├── MySqlConnectionFactory.cs reads the connection string and opens MySQL connections
 │   │   └── StoreClock.cs             today's date in the store's time zone (Eastern)
 │   ├── Errors/
@@ -84,6 +88,7 @@ IMP-Back/
 │   ├── logs/                         error log files, one per day (not committed)
 │   ├── Models/                       C# classes that query results are turned into
 │   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
+│   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, and renew
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing, and sign-in tokens
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
@@ -91,7 +96,8 @@ IMP-Back/
 │   │   ├── TokenService.cs           makes the device token (90 days) and session token (12 hours)
 │   │   ├── TokenClaims.cs            the names inside a token, and the Device and Session policies
 │   │   ├── TokenEvents.cs            checks each token against the database and writes the 401 reply
-│   │   └── AuthErrors.cs             the four token error codes and their sentences from auth.md
+│   │   ├── AuthErrors.cs             the four token error codes and their sentences from auth.md
+│   │   └── InputRules.cs             the email, password, PIN, and name rules from auth.md
 │   ├── appsettings.json              settings used everywhere
 │   ├── appsettings.Development.json  settings used only on your computer (database login, token secret)
 │   ├── Properties/launchSettings.json  port 5000, Development mode
@@ -99,6 +105,7 @@ IMP-Back/
 └── Imp.Api.Tests/                    xUnit tests for Imp.Api
     ├── PasswordHasherTests.cs        tests for BcryptPasswordHasher, using copies of the sample data hashes
     ├── TokenServiceTests.cs          what each token holds, how long it lasts, and which policy accepts it
+    ├── InputRulesTests.cs            the email, password, PIN, and name rules
     ├── AuditEntryTests.cs            tests for the AuditEntry class
     ├── AuditLogMatchTests.cs         every action and target pair against the ERD's list
     ├── AuditLogSchemaTests.cs        the enums match schema.sql's ENUM columns (needs the database)
@@ -272,7 +279,10 @@ To use a program such as DBeaver or MySQL Workbench instead, connect to host `lo
 | Stop it (keeps the data) | `docker compose stop` |
 | Start it again | `docker compose start` |
 | Reset to fresh tables and sample data (deletes everything) | `docker compose down -v` then `docker compose up -d` |
+| Empty every table, to test first-time setup (run from the repo folder) | `docker exec -i imp-mysql mysql -uimp -pimp IMP < db/clear_data.sql` |
 | See errors | `docker compose logs db` |
+
+In PowerShell, `<` doesn't work, so empty it with `Get-Content db/clear_data.sql | docker exec -i imp-mysql mysql -uimp -pimp IMP` instead. To get the sample data back afterward, reset.
 
 The `.sql` files only run when the database is empty. After pulling changes to `schema.sql` or `sample_data.sql`, reset to see them.
 
@@ -282,6 +292,7 @@ The `.sql` files only run when the database is empty. After pulling changes to `
 |---|---|---|
 | `schema.sql` | Creates the `IMP` database and its 7 tables, following ERD v2.6 | Your computer and the real server |
 | `sample_data.sql` | Clears the tables and fills them with test data | Your computer only, never the real server |
+| `clear_data.sql` | Empties every table (the same lines as the top of `sample_data.sql`), so the API starts at first-time setup | Your computer only, never the real server |
 | `docker-compose.yml` | Runs MySQL 8.0 on port 3307 and loads both files above on first start | Your computer only |
 
 Keep the table scripts and the sample data in separate files, so `schema.sql` can be run on the real server without the test data. Port 3307 is used instead of the usual 3306, so it does not clash with a MySQL already installed on your computer.

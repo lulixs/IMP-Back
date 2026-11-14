@@ -210,6 +210,43 @@ public class TokenServiceTests {
         Assert.Equal(AuthErrors.DeviceNotSetUp, TokenEvents.CodeForFailedToken(TokenClaims.DeviceKind, null));
     }
 
+    // Renew: POST /api/devices/renew takes a device token even after it expires
+
+    [Fact]
+    public async Task ReadDeviceIdIgnoringExpiry_ExpiredDeviceToken_GivesItsDeviceId() {
+        var madeEarlier = new TokenService(Secret, new FixedClock(DateTimeOffset.UtcNow.AddDays(-200)));
+
+        Assert.Equal(5, await _tokens.ReadDeviceIdIgnoringExpiryAsync(madeEarlier.CreateDeviceToken(5)));
+    }
+
+    [Fact]
+    public async Task ReadDeviceIdIgnoringExpiry_CurrentDeviceToken_GivesItsDeviceId() {
+        Assert.Equal(5, await _tokens.ReadDeviceIdIgnoringExpiryAsync(_tokens.CreateDeviceToken(5)));
+    }
+
+    // Only the signature is skipped for exp. A token from another secret is still refused.
+    [Fact]
+    public async Task ReadDeviceIdIgnoringExpiry_OtherSecret_GivesNull() {
+        var otherServer = new TokenService("a-different-secret-that-is-also-long-enough");
+
+        Assert.Null(await _tokens.ReadDeviceIdIgnoringExpiryAsync(otherServer.CreateDeviceToken(5)));
+    }
+
+    // A session token can't be used to renew a tablet.
+    [Fact]
+    public async Task ReadDeviceIdIgnoringExpiry_SessionToken_GivesNull() {
+        Assert.Null(await _tokens.ReadDeviceIdIgnoringExpiryAsync(_tokens.CreateSessionToken(7, 5)));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("not-a-token")]
+    [InlineData("a.b.c")]
+    public async Task ReadDeviceIdIgnoringExpiry_MissingOrGarbage_GivesNull(string? token) {
+        Assert.Null(await _tokens.ReadDeviceIdIgnoringExpiryAsync(token));
+    }
+
     // A clock stuck at one time, for making tokens that are already expired.
     private sealed class FixedClock(DateTimeOffset now) : TimeProvider {
         public override DateTimeOffset GetUtcNow() => now;
