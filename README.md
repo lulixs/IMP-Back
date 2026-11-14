@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), and tablet setup (`POST /api/devices` and `POST /api/devices/renew`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it doesn't check the session token yet (D-164). Sign-in tokens are built (see [docs/api/auth.md](docs/api/auth.md)), and the rest of auth.md (employee sign-in, sign-out, and Master mode) is next. The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. `POST /api/setup` is the first endpoint to use it.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), and employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it doesn't check the session token yet (D-164). Sign-in tokens are built (see [docs/api/auth.md](docs/api/auth.md)), and Master mode is the only part of auth.md still to build. The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. `POST /api/setup` is the first endpoint to use it.
 
 ## Who does what
 
@@ -74,6 +74,8 @@ IMP-Back/
 │   │   ├── HealthController.cs       GET /api/health and GET /api/health/database
 │   │   ├── SetupController.cs        GET /api/setup/status and POST /api/setup (first-time setup)
 │   │   ├── DevicesController.cs      POST /api/devices (set up a tablet) and POST /api/devices/renew
+│   │   ├── EmployeesController.cs    GET /api/employees/active (the names on the sign-in screen)
+│   │   ├── SessionsController.cs     POST /api/sessions (sign in) and DELETE /api/sessions/current (sign out)
 │   │   └── DashboardController.cs    GET /api/dashboard
 │   ├── Data/                         database access code
 │   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
@@ -88,7 +90,8 @@ IMP-Back/
 │   ├── logs/                         error log files, one per day (not committed)
 │   ├── Models/                       C# classes that query results are turned into
 │   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
-│   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, and renew
+│   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, renew, and sign-in
+│   │   ├── EmployeeSummary.cs        one employee's id and name, for the sign-in screen
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing, and sign-in tokens
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN

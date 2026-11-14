@@ -29,3 +29,9 @@ public class MasterCredentialsRequest {
     public string? Email { get; set; }
     public string? Password { get; set; }
 }
+
+// POST /api/sessions
+public class SignInRequest {
+    public int? EmployeeId { get; set; }
+    public string? Pin { get; set; }
+}
