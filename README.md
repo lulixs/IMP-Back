@@ -39,6 +39,7 @@ Wait for `Now listening on: http://localhost:5000`, then open:
 - http://localhost:5000/api/health/database shows `{"database":"ok"}` if the API can reach MySQL
 - http://localhost:5000/api/dashboard shows the box counts for every category (needs the database running).
 - http://localhost:5000/swagger lists every endpoint and lets you send test requests from the browser.
+- To call an endpoint that needs a token in Swagger, click **Authorize** and paste a device or session token (without the word `Bearer`), as described in [docs/api/auth.md](docs/api/auth.md).
 
 Stop the server with `Ctrl+C`. After changing code, stop and run it again.
 
@@ -84,15 +85,20 @@ IMP-Back/
 │   ├── Models/                       C# classes that query results are turned into
 │   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
-│   ├── Security/                     PIN and password hashing
+│   ├── Security/                     PIN and password hashing, and sign-in tokens
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
-│   │   └── BcryptPasswordHasher.cs   hashes with bcrypt at cost 12 and checks PINs against stored hashes
+│   │   ├── BcryptPasswordHasher.cs   hashes with bcrypt at cost 12 and checks PINs against stored hashes
+│   │   ├── TokenService.cs           makes the device token (90 days) and session token (12 hours)
+│   │   ├── TokenClaims.cs            the names inside a token, and the Device and Session policies
+│   │   ├── TokenEvents.cs            checks each token against the database and writes the 401 reply
+│   │   └── AuthErrors.cs             the four token error codes and their sentences from auth.md
 │   ├── appsettings.json              settings used everywhere
-│   ├── appsettings.Development.json  settings used only on your computer (database login)
+│   ├── appsettings.Development.json  settings used only on your computer (database login, token secret)
 │   ├── Properties/launchSettings.json  port 5000, Development mode
 │   └── Imp.Api.csproj                .NET version and packages
 └── Imp.Api.Tests/                    xUnit tests for Imp.Api
     ├── PasswordHasherTests.cs        tests for BcryptPasswordHasher, using copies of the sample data hashes
+    ├── TokenServiceTests.cs          what each token holds, how long it lasts, and which policy accepts it
     ├── AuditEntryTests.cs            tests for the AuditEntry class
     ├── AuditLogMatchTests.cs         every action and target pair against the ERD's list
     ├── AuditLogSchemaTests.cs        the enums match schema.sql's ENUM columns (needs the database)
@@ -200,6 +206,7 @@ The connection details live in `Imp.Api/appsettings.Development.json` under the 
 - C# code reads it with `builder.Configuration.GetConnectionString("IMP")`. Never write the login into the code itself.
 - These values only work against the MySQL container on your own computer, so committing them is fine.
 - **Never commit the real server's password.** On the server, the connection string is set with an environment variable named `ConnectionStrings__IMP`, and this file is not used.
+- The same file holds `Jwt:Secret`, which signs sign-in tokens on your computer. It is for development only, so committing it is fine. The live server sets its own secret as the `Jwt__Secret` environment variable, at least 32 characters (`openssl rand -base64 48` makes one), and the API refuses to start without it.
 
 ### How the API talks to MySQL
 

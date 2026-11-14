@@ -3,6 +3,8 @@ using Imp.Api.Errors;
 using Serilog;
 using Serilog.Events;
 using Imp.Api.Security;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.OpenApi;
 
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
@@ -27,6 +29,26 @@ var connectionString = builder.Configuration.GetConnectionString("IMP")
 builder.Services.AddSingleton<IDbConnectionFactory>(new MySqlConnectionFactory(connectionString));
 builder.Services.AddSingleton<IPasswordHasher, BcryptPasswordHasher>();
 
+// Sign-in tokens (docs/api/auth.md). The secret comes from appsettings.Development.json on your computer,
+// and from the Jwt__Secret environment variable on the live server.
+var jwtSecret = builder.Configuration["Jwt:Secret"]
+    ?? throw new InvalidOperationException("Jwt:Secret was not found. Check Imp.Api/appsettings.Development.json, or set Jwt__Secret on the server.");
+var tokenService = new TokenService(jwtSecret);
+builder.Services.AddSingleton(tokenService);
+builder.Services.AddSingleton<TokenEvents>();
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options => {
+        // Keep the claim names as they are in the token (sub, kind, deviceId) instead of long .NET names.
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = tokenService.ValidationParameters;
+        // TokenEvents does the database checks (TokenValidated) and writes the 401 reply (Challenge).
+        options.EventsType = typeof(TokenEvents);
+    });
+
+// Endpoints use [Authorize(Policy = "Session")] or [Authorize(Policy = "Device")]. Each checks the token's kind.
+builder.Services.AddAuthorization(AuthPolicies.AddTo);
+
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options => {
         // Weird errors become a normal ApiError
@@ -35,7 +57,23 @@ builder.Services.AddControllers()
     }
 );
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options => {
+    // Adds the Authorize button to Swagger, where a device or session token can be pasted in.
+    options.AddDocumentTransformer((document, context, ct) => {
+        document.Components ??= new OpenApiComponents();
+        document.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
+        document.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme {
+            Type = SecuritySchemeType.Http,
+            Scheme = "bearer",
+            BearerFormat = "JWT",
+            Description = "Paste a device or session token, without the word Bearer.",
+        };
+        document.Security = [
+            new OpenApiSecurityRequirement { [new OpenApiSecuritySchemeReference("Bearer", document)] = [] }
+        ];
+        return Task.CompletedTask;
+    });
+});
 
 builder.Services.AddCors(o => o.AddPolicy("Dev", p =>  
     p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
@@ -97,6 +135,7 @@ if (app.Environment.IsDevelopment())
     app.UseCors("Dev");
 }
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
