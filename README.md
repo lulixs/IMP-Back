@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), and employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Sign-in tokens are built (see [docs/api/auth.md](docs/api/auth.md)), and Master mode is the only part of auth.md still to build. The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. `POST /api/setup` is the first endpoint to use it.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), and Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. `POST /api/setup` is the first endpoint to use it.
 
 ## Who does what
 
@@ -76,6 +76,7 @@ IMP-Back/
 │   │   ├── DevicesController.cs      POST /api/devices (set up a tablet) and POST /api/devices/renew
 │   │   ├── EmployeesController.cs    GET /api/employees/active (the names on the sign-in screen)
 │   │   ├── SessionsController.cs     POST /api/sessions (sign in) and DELETE /api/sessions/current (sign out)
+│   │   ├── MasterModeController.cs   POST /api/master-mode (turn on) and DELETE /api/master-mode (turn off)
 │   │   └── DashboardController.cs    GET /api/dashboard
 │   ├── Data/                         database access code
 │   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
@@ -90,7 +91,7 @@ IMP-Back/
 │   ├── logs/                         error log files, one per day (not committed)
 │   ├── Models/                       C# classes that query results are turned into
 │   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
-│   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, renew, and sign-in
+│   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, renew, sign-in, and Master mode
 │   │   ├── EmployeeSummary.cs        one employee's id and name, for the sign-in screen
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing, and sign-in tokens
@@ -100,6 +101,7 @@ IMP-Back/
 │   │   ├── TokenClaims.cs            the names inside a token, and the Device and Session policies
 │   │   ├── TokenEvents.cs            checks each token against the database and writes the 401 reply
 │   │   ├── AuthErrors.cs             the four token error codes and their sentences from auth.md
+│   │   ├── RequireMasterModeAttribute.cs  [RequireMasterMode], refuses a request with 403 unless Master mode is on
 │   │   └── InputRules.cs             the email, password, PIN, and name rules from auth.md
 │   ├── appsettings.json              settings used everywhere
 │   ├── appsettings.Development.json  settings used only on your computer (database login, token secret)
@@ -113,7 +115,10 @@ IMP-Back/
     ├── AuditLogMatchTests.cs         every action and target pair against the ERD's list
     ├── AuditLogSchemaTests.cs        the enums match schema.sql's ENUM columns (needs the database)
     ├── AuditLogWriteTests.cs         AuditLog.WriteAsync against MySQL (needs the database)
+    ├── MasterModeControllerTests.cs  POST and DELETE /api/master-mode (needs the database)
+    ├── RequireMasterModeAttributeTests.cs  [RequireMasterMode] lets requests through only in Master mode
     ├── TestDatabase.cs               gives each database test its own employee, tablet, and cleanup
+    ├── TestSetup.cs                  runs before any test: turns on the same Dapper setting as Program.cs
     ├── Support/ErdRules.cs           the ERD's table of allowed audit pairs, for the tests
     └── Imp.Api.Tests.csproj          test packages and a reference to Imp.Api
 ```
@@ -127,6 +132,10 @@ dotnet test
 ```
 
 This builds both projects and runs every test in `Imp.Api.Tests/`. Start the database first (see [Database setup](#database-setup)): the audit log tests write to it. If it isn't running, those tests are skipped with a message, not failed, so check the skipped count before a pull request. They are safe to run against your sample data. Each test makes its own employee and tablet with random names and removes everything it added. To run only one class, add a filter, for example `dotnet test --filter PasswordHasherTests`.
+
+The Master mode tests need a Master account in the database, from the sample data or from first-time setup. They read its email from the database and use a fake password check, so they work whichever one you have. If neither exists, they fail with a message saying so.
+
+`TestSetup.cs` turns on Dapper's `MatchNamesWithUnderscores` (see [How the API talks to MySQL](#how-the-api-talks-to-mysql)), because the tests never run `Program.cs`. If you change that line in `Program.cs`, change it in `TestSetup.cs` too.
 
 The hashes in `PasswordHasherTests.cs` are copies of the ones in `db/sample_data.sql`. If the sample PINs or hashes change, update the test file too.
 
@@ -142,6 +151,21 @@ Each endpoint's JSON shape is written in `docs/api/` before the endpoint is buil
 4. ASP.NET Core turns the result into JSON and sends it back.
 
 To add an endpoint, add a method to a controller (or a new class in `Controllers/` whose name ends in `Controller`). It shows up in Swagger automatically.
+
+## Endpoints that need Master mode
+
+Put `[RequireMasterMode]` (`Imp.Api/Security/RequireMasterModeAttribute.cs`) on an endpoint, or on a whole controller, that only works in Master mode:
+
+```csharp
+[HttpDelete("{id}")]
+[RequireMasterMode]
+public async Task<IActionResult> Remove(int id, CancellationToken ct) { ... }
+```
+
+- It reads `DEVICE.is_elevated` for the tablet in the session token on every request, since Master mode can be turned off at any time. It never puts Master mode in the token.
+- If Master mode is off, the request stops with 403 and "Turn on Master mode first." (from [docs/api/README.md](docs/api/README.md)), and the endpoint never runs.
+- It needs the session token, so the controller must also have `[Authorize(Policy = AuthPolicies.Session)]`. Without it, every request is refused with `sessionEnded`.
+- The endpoint's contract should list the 403 under its errors.
 
 ## Errors and logging
 
