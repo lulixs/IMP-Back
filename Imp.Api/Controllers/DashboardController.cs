@@ -1,12 +1,16 @@
 using Dapper;
 using Imp.Api.Data;
 using Imp.Api.Models;
+using Imp.Api.Security;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Imp.Api.Controllers;
 
+// Takes the session token (docs/api/dashboard.md)
 [ApiController]
 [Route("api/dashboard")]
+[Authorize(Policy = AuthPolicies.Session)]
 public class DashboardController : ControllerBase {
     private readonly IDbConnectionFactory db;
 
