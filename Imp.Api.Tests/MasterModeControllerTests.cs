@@ -15,17 +15,27 @@ namespace Imp.Api.Tests;
 // session token's claims, against the Docker database. The token checks themselves (signature, expiry, tablet
 // removed, employee deactivated) belong to TokenEvents and are not repeated here.
 //
-// The Master email and password come from the sample data (db/sample_data.sql).
-// If the database is not running these are skipped, like the other database tests.
+// The Master email is read from the MASTER_ACCOUNT row, so these work on the sample data or after first-time
+// setup. The password check uses FakeHasher instead of bcrypt, so no real password is needed (bcrypt itself is
+// tested in PasswordHasherTests). If the database is not running these are skipped, like the other database tests.
 public class MasterModeControllerTests {
-    private const string SampleEmail = "master@example.com";
-    private const string SamplePassword = "master123";
+    // The only password FakeHasher accepts.
+    private const string RightPassword = "right-password";
+
+    // Stands for the real Master email in [InlineData], which can't read the database.
+    private const string MasterEmail = "<master email>";
 
     // The exact sentences from auth.md.
     private const string WrongCredentials = "Incorrect email or password. Try again.";
     private const string SignedOut = "You've been signed out. Sign in again.";
 
     // Setup
+
+    // Accepts RightPassword whatever the stored hash is.
+    private sealed class FakeHasher : IPasswordHasher {
+        public string Hash(string pin) => throw new NotSupportedException();
+        public bool Verify(string pin, string storedHash) => pin == RightPassword;
+    }
 
     // A controller that sees the request as coming from this employee, signed in on this tablet.
     private static MasterModeController ControllerFor(int employeeId, int deviceId) {
@@ -34,7 +44,7 @@ public class MasterModeControllerTests {
             new Claim(TokenClaims.EmployeeId, employeeId.ToString()),
             new Claim(TokenClaims.DeviceId, deviceId.ToString()),
         }, "test");
-        return new MasterModeController(new MySqlConnectionFactory(TestDatabase.ConnectionString), new BcryptPasswordHasher()) {
+        return new MasterModeController(new MySqlConnectionFactory(TestDatabase.ConnectionString), new FakeHasher()) {
             ControllerContext = new ControllerContext {
                 HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) }
             }
@@ -46,12 +56,12 @@ public class MasterModeControllerTests {
         JsonSerializer.Deserialize<MasterCredentialsRequest>(
             JsonSerializer.Serialize(new { email, password }), JsonSerializerOptions.Web)!;
 
-    private static async Task RequireSampleMasterAsync(TestDatabase db) {
-        var found = await db.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM MASTER_ACCOUNT WHERE email = @email", new { email = SampleEmail });
-        Assert.True(found == 1,
-            $"These tests sign in with the sample Master account ({SampleEmail} / {SamplePassword}). " +
-            "Load db/sample_data.sql first (cd db && docker compose down -v && docker compose up -d).");
+    // The store's Master email. The row exists once the sample data is loaded or first-time setup has run.
+    private static async Task<string> MasterEmailAsync(TestDatabase db) {
+        var email = await db.ScalarAsync<string>("SELECT email FROM MASTER_ACCOUNT WHERE id = 1");
+        Assert.True(email is not null,
+            "These tests need a Master account. Run first-time setup, or reset the database to load the sample data.");
+        return email!;
     }
 
     // Puts an employee on a tablet, with Master mode on or off.
@@ -72,11 +82,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_RightCredentials_TurnsMasterModeOnAndReturns204() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
 
         var result = await ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None);
+            .TurnOn(Credentials(email, RightPassword), CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         Assert.True(await IsMasterModeOnAsync(db, db.DeviceId));
@@ -86,11 +96,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_KeepsTheEmployeeSignedIn() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
 
         await ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None);
+            .TurnOn(Credentials(email, RightPassword), CancellationToken.None);
 
         Assert.Equal(db.EmployeeId, await ActiveEmployeeAsync(db, db.DeviceId));
     }
@@ -99,11 +109,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_WhenAlreadyOn_Returns204AndStaysOn() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId, masterMode: true);
 
         var result = await ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None);
+            .TurnOn(Credentials(email, RightPassword), CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
         Assert.True(await IsMasterModeOnAsync(db, db.DeviceId));
@@ -113,11 +123,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_WrongPassword_Returns401AndMasterModeStaysOff() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
 
         var error = await Assert.ThrowsAsync<ApiError>(() => ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, "not-the-password"), CancellationToken.None));
+            .TurnOn(Credentials(email, "not-the-password"), CancellationToken.None));
 
         Assert.Equal(401, error.StatusCode);
         Assert.Equal(WrongCredentials, error.Message);
@@ -129,11 +139,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_WrongEmail_GetsTheSameAnswerAsAWrongPassword() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
 
         var error = await Assert.ThrowsAsync<ApiError>(() => ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials("someone.else@example.com", SamplePassword), CancellationToken.None));
+            .TurnOn(Credentials("someone.else@example.com", RightPassword), CancellationToken.None));
 
         Assert.Equal(401, error.StatusCode);
         Assert.Equal(WrongCredentials, error.Message);
@@ -147,16 +157,17 @@ public class MasterModeControllerTests {
     [InlineData(null, null)]
     [InlineData("", "")]
     [InlineData(" ", " ")]
-    [InlineData(SampleEmail, null)]
-    [InlineData(SampleEmail, "")]
-    [InlineData(SampleEmail, " ")]
-    [InlineData(null, SamplePassword)]
-    [InlineData("", SamplePassword)]
-    [InlineData(" ", SamplePassword)]
+    [InlineData(MasterEmail, null)]
+    [InlineData(MasterEmail, "")]
+    [InlineData(MasterEmail, " ")]
+    [InlineData(null, RightPassword)]
+    [InlineData("", RightPassword)]
+    [InlineData(" ", RightPassword)]
     public async Task TurnOn_BlankOrMissingField_Returns401(string? email, string? password) {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var masterEmail = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
+        if (email == MasterEmail) email = masterEmail;
 
         var error = await Assert.ThrowsAsync<ApiError>(() => ControllerFor(db.EmployeeId, db.DeviceId)
             .TurnOn(Credentials(email, password), CancellationToken.None));
@@ -166,15 +177,29 @@ public class MasterModeControllerTests {
         Assert.False(await IsMasterModeOnAsync(db, db.DeviceId));
     }
 
+    // The email matches with capital letters or spaces at the ends, the same as tablet setup.
+    [DatabaseFact]
+    public async Task TurnOn_EmailWithCapitalsAndSpaces_StillMatches() {
+        await using var db = await TestDatabase.CreateAsync();
+        var email = await MasterEmailAsync(db);
+        await SignInAsync(db, db.DeviceId, db.EmployeeId);
+
+        var result = await ControllerFor(db.EmployeeId, db.DeviceId)
+            .TurnOn(Credentials("  " + email.ToUpperInvariant() + " ", RightPassword), CancellationToken.None);
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.True(await IsMasterModeOnAsync(db, db.DeviceId));
+    }
+
     // A failed attempt does not turn Master mode off if it was already on.
     [DatabaseFact]
     public async Task TurnOn_WrongPasswordWhileAlreadyOn_LeavesItOn() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId, masterMode: true);
 
         await Assert.ThrowsAsync<ApiError>(() => ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, "not-the-password"), CancellationToken.None));
+            .TurnOn(Credentials(email, "not-the-password"), CancellationToken.None));
 
         Assert.True(await IsMasterModeOnAsync(db, db.DeviceId));
     }
@@ -183,14 +208,14 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_DoesNotAffectOtherTablets() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         var otherEmployee = await db.CreateEmployeeAsync();
         var otherDevice = await db.CreateDeviceAsync();
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
         await SignInAsync(db, otherDevice, otherEmployee);
 
         await ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None);
+            .TurnOn(Credentials(email, RightPassword), CancellationToken.None);
 
         Assert.True(await IsMasterModeOnAsync(db, db.DeviceId));
         Assert.False(await IsMasterModeOnAsync(db, otherDevice));
@@ -201,12 +226,12 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_TabletNowNamesSomeoneElse_ReturnsSessionEndedAndStaysOff() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         var someoneElse = await db.CreateEmployeeAsync();
         await SignInAsync(db, db.DeviceId, someoneElse);
 
         var error = await Assert.ThrowsAsync<ApiError>(() => ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None));
+            .TurnOn(Credentials(email, RightPassword), CancellationToken.None));
 
         Assert.Equal(401, error.StatusCode);
         Assert.Equal("sessionEnded", error.Code);
@@ -219,11 +244,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurnOn_NobodySignedIn_ReturnsSessionEndedAndStaysOff() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, employeeId: null);
 
         var error = await Assert.ThrowsAsync<ApiError>(() => ControllerFor(db.EmployeeId, db.DeviceId)
-            .TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None));
+            .TurnOn(Credentials(email, RightPassword), CancellationToken.None));
 
         Assert.Equal("sessionEnded", error.Code);
         Assert.False(await IsMasterModeOnAsync(db, db.DeviceId));
@@ -291,11 +316,11 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task TurningMasterModeOnAndOff_WritesNoAuditEntries() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
         var controller = ControllerFor(db.EmployeeId, db.DeviceId);
 
-        await controller.TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None);
+        await controller.TurnOn(Credentials(email, RightPassword), CancellationToken.None);
         await controller.TurnOff(CancellationToken.None);
 
         Assert.Empty(await db.RowsAsync());
@@ -305,12 +330,12 @@ public class MasterModeControllerTests {
     [DatabaseFact]
     public async Task MasterMode_OnThenOff_EndsOffAgain() {
         await using var db = await TestDatabase.CreateAsync();
-        await RequireSampleMasterAsync(db);
+        var email = await MasterEmailAsync(db);
         await SignInAsync(db, db.DeviceId, db.EmployeeId);
         var controller = ControllerFor(db.EmployeeId, db.DeviceId);
         Assert.False(await IsMasterModeOnAsync(db, db.DeviceId));
 
-        await controller.TurnOn(Credentials(SampleEmail, SamplePassword), CancellationToken.None);
+        await controller.TurnOn(Credentials(email, RightPassword), CancellationToken.None);
         Assert.True(await IsMasterModeOnAsync(db, db.DeviceId));
 
         await controller.TurnOff(CancellationToken.None);
