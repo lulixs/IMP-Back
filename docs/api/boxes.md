@@ -201,7 +201,48 @@ When something changed, the server, in one transaction:
   - RACKED when it goes from false to true, with the location and whether the storage timer was reset
   - one EDITED entry listing every other field that changed (D-149)
 
-The exact `details` shape for these entries follows deferred item 41, which Nick is settling.
+### Audit details
+
+Every audit entry that has `details` uses one shape, a list of changes (D-149, D-196, D-197):
+
+```json
+{"changes": [{"field": "fullness", "from": "HALF", "to": "FULL"}]}
+```
+
+- `field` is camelCase, like the rest of the API.
+- Only changed fields are listed. A list that would be empty means no entry, or null `details` for RACKED.
+- Categories and buildings are stored by name, never id, so entries stay readable after a permanent delete.
+- A box's building, shelf letter, and shelf level are one `location` field, written the way the app shows it: `Back Warehouse · Shelf A, Level 2`.
+- `notes` can go from or to `null`.
+
+| Action | `details` |
+|---|---|
+| BOX EDITED | Changes to `category`, `location`, `fullness`, and `notes`. Never `isRacked` or `rackedSince` |
+| BOX RACKED | A `location` change if the box moved, and a `rackedSince` change if `resetRackedSince` was true. Null if neither |
+| BOX UNRACKED | Null. The box keeps its location while unracked |
+| EMPLOYEE EDITED | Changes to `name`, and `pin` with a note and no values |
+| MASTER EDITED | Changes to `email`, `alertThresholdDays`, and `idleTimeoutMinutes`, and `password` with a note and no values |
+| CATEGORY EDITED | Changes to `name` and `symbol` |
+| ADDED, DELETED, RESTORED, PERMANENTLY_DELETED, ACTIVATED, DEACTIVATED | Null |
+
+A re-rack to a new shelf with the timer reset, plus a fullness change, in one save writes two entries:
+
+```
+RACKED:
+{"changes": [
+  {"field": "location", "from": "Back Warehouse · Shelf A, Level 2", "to": "Storage Trailer · Shelf C, Level 1"},
+  {"field": "rackedSince", "from": "2026-03-02", "to": "2026-11-17"}
+]}
+
+EDITED:
+{"changes": [{"field": "fullness", "from": "HALF", "to": "FULL"}]}
+```
+
+A PIN or password change never stores a value or hash:
+
+```json
+{"changes": [{"field": "pin", "note": "PIN changed"}]}
+```
 
 ### Errors
 

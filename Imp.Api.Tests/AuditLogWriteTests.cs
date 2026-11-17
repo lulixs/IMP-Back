@@ -37,7 +37,7 @@ public class AuditLogWriteTests {
         entry.TargetType = AuditTarget.CATEGORY;
         entry.TargetId = 42;
         entry.TargetLabel = "Coats";
-        entry.Details = """{"name":{"before":"Coats","after":"Jackets"}}""";
+        entry.Details = """{"changes":[{"field":"name","from":"Coats","to":"Jackets"}]}""";
 
         await db.WriteAsync(entry);
 
@@ -50,7 +50,7 @@ public class AuditLogWriteTests {
         Assert.Equal(42, row.TargetId);
         Assert.Equal("Coats", row.TargetLabel);
         using var details = JsonDocument.Parse(row.Details!);
-        Assert.Equal("Jackets", details.RootElement.GetProperty("name").GetProperty("after").GetString());
+        Assert.Equal("Jackets", details.RootElement.GetProperty("changes")[0].GetProperty("to").GetString());
     }
 
     // The three plain numbers must not get swapped with each other either.
