@@ -18,12 +18,20 @@ public class BuildingsController : ControllerBase {
         this.db = db;
     }
 
-    // GET /api/buildings. Every building, sorted by name.
+    // GET /api/buildings. Every building, sorted by name, with how many active and soft-deleted boxes use it.
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct) {
         await using var connection = await db.OpenConnectionAsync(ct);
-        var buildings = await connection.QueryAsync<BuildingSummary>(new CommandDefinition(
-            "SELECT id, name FROM BUILDING ORDER BY name",
+        var buildings = await connection.QueryAsync<BuildingListItem>(new CommandDefinition("""
+            SELECT
+                bu.id, bu.name,
+                COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL THEN 1 END) AS active_box_count,
+                COUNT(b.deleted_at) AS deleted_box_count
+            FROM BUILDING AS bu
+            LEFT JOIN BOX AS b ON b.building_id = bu.id
+            GROUP BY bu.id
+            ORDER BY bu.name
+            """,
             cancellationToken: ct));
         return Ok(new { buildings });
     }

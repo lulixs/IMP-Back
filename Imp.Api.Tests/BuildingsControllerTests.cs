@@ -22,10 +22,10 @@ public class BuildingsControllerTests {
     private static async Task<object> ResponseAsync() =>
         Assert.IsType<OkObjectResult>(await Controller().GetAll(CancellationToken.None)).Value!;
 
-    private static async Task<List<BuildingSummary>> BuildingsAsync() {
+    private static async Task<List<BuildingListItem>> BuildingsAsync() {
         var response = await ResponseAsync();
         var buildings = response.GetType().GetProperty("buildings")!.GetValue(response);
-        return Assert.IsAssignableFrom<IEnumerable<BuildingSummary>>(buildings).ToList();
+        return Assert.IsAssignableFrom<IEnumerable<BuildingListItem>>(buildings).ToList();
     }
 
     // Tests
@@ -48,7 +48,70 @@ public class BuildingsControllerTests {
 
         Assert.Equal(new[] { "buildings" }, json.EnumerateObject().Select(p => p.Name));
         var first = json.GetProperty("buildings")[0];
-        Assert.Equal(new[] { "id", "name" }, first.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(new[] { "id", "name", "activeBoxCount", "deletedBoxCount" },
+            first.EnumerateObject().Select(p => p.Name));
+    }
+
+    // Box counts (D-198)
+
+    [DatabaseFact]
+    public async Task Counts_SplitActiveAndSoftDeletedBoxes() {
+        // Active means not soft-deleted, racked or not.
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var buildingId = await data.BuildingAsync();
+        var categoryId = await data.CategoryAsync();
+        await data.BoxAsync(categoryId, buildingId, isRacked: true);
+        await data.BoxAsync(categoryId, buildingId, isRacked: false);
+        await data.SoftDeleteAsync(await data.BoxAsync(categoryId, buildingId, isRacked: true), db.EmployeeId);
+        await data.SoftDeleteAsync(await data.BoxAsync(categoryId, buildingId, isRacked: false), db.EmployeeId);
+        await data.SoftDeleteAsync(await data.BoxAsync(categoryId, buildingId), db.EmployeeId);
+
+        var building = Assert.Single(await BuildingsAsync(), b => b.Id == buildingId);
+
+        Assert.Equal(2, building.ActiveBoxCount);
+        Assert.Equal(3, building.DeletedBoxCount);
+    }
+
+    [DatabaseFact]
+    public async Task Counts_AreZeroForABuildingWithNoBoxes() {
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var emptyId = await data.BuildingAsync();
+        await data.BoxAsync(await data.CategoryAsync(), await data.BuildingAsync()); // a box somewhere else
+
+        var building = Assert.Single(await BuildingsAsync(), b => b.Id == emptyId);
+
+        Assert.Equal(0, building.ActiveBoxCount);
+        Assert.Equal(0, building.DeletedBoxCount);
+    }
+
+    [DatabaseFact]
+    public async Task Counts_IncludeBoxesInEveryCategory() {
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var buildingId = await data.BuildingAsync();
+        await data.BoxAsync(await data.CategoryAsync(), buildingId);
+        await data.BoxAsync(await data.CategoryAsync(), buildingId);
+
+        var building = Assert.Single(await BuildingsAsync(), b => b.Id == buildingId);
+
+        Assert.Equal(2, building.ActiveBoxCount);
+    }
+
+    [DatabaseFact]
+    public async Task Counts_SoftDeletingABoxMovesItFromActiveToDeleted() {
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var buildingId = await data.BuildingAsync();
+        var boxId = await data.BoxAsync(await data.CategoryAsync(), buildingId);
+
+        var before = Assert.Single(await BuildingsAsync(), b => b.Id == buildingId);
+        await data.SoftDeleteAsync(boxId, db.EmployeeId);
+        var after = Assert.Single(await BuildingsAsync(), b => b.Id == buildingId);
+
+        Assert.Equal((1, 0), (before.ActiveBoxCount, before.DeletedBoxCount));
+        Assert.Equal((0, 1), (after.ActiveBoxCount, after.DeletedBoxCount));
     }
 
     [DatabaseFact]

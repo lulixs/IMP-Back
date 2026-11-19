@@ -4,11 +4,17 @@ Each file in this folder is the contract for one area of the API: the exact JSON
 
 | File | Covers |
 |---|---|
+| [accounts.md](accounts.md) | Listing, adding, editing, deactivating, and reactivating employees (Master mode) |
+| [alerts.md](alerts.md) | Boxes stored too long, for the Alerts page and the badge |
+| [audit-log.md](audit-log.md) | Reading, searching, and filtering the audit log, newest first, in pages (Master mode) |
 | [auth.md](auth.md) | First-time setup, tablets, sign-in and sign-out, Master mode, and the two tokens |
 | [boxes.md](boxes.md) | Searching, opening, creating, editing, and soft-deleting boxes |
-| [buildings.md](buildings.md) | The building list (adding and removing still to be written) |
-| [categories.md](categories.md) | The category list (adding, editing, and deleting still to be written) |
+| [buildings.md](buildings.md) | The building list, and adding and removing buildings (Master mode) |
+| [categories.md](categories.md) | The category list, adding and editing categories, and deleting them (Master mode) |
 | [dashboard.md](dashboard.md) | `GET /api/dashboard` |
+| [deleted-items.md](deleted-items.md) | Listing, restoring, and permanently deleting soft-deleted boxes (Master mode) |
+| [devices.md](devices.md) | The Signed-in Devices list (Master mode) |
+| [settings.md](settings.md) | Reading the alert threshold and idle sign-out, and changing them (Master mode) |
 
 This file holds the rules every contract shares. The health checks (`GET /api/health` and `GET /api/health/database`) are developer tools the app doesn't call, so they're documented in the repo README instead, and their 503 reply isn't in the error shape below.
 
@@ -34,6 +40,7 @@ Every error, from every endpoint, has the same shape (D-165):
 |---|---|---|
 | `error` | string | One sentence a person can read, shown as it is on the screen. Ends with a period. Never contains stack traces, SQL, or other server details |
 | `code` | string, optional | A fixed word the app acts on. Only sent on the errors below that need the app to leave the current screen (D-168). Left out everywhere else |
+| `details` | object, optional | More than the sentence, for the few errors where the app needs it, for example the boxes blocking a delete. Each contract that sends it says what is inside (D-204). Left out everywhere else |
 | `traceId` | string, 500 only | An id for the request, also written in the server's log next to the real error, so a reported 500 can be found there. The app ignores it (D-181). Left out on every other status |
 
 ### Status codes

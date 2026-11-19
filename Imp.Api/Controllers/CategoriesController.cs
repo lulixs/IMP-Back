@@ -18,12 +18,20 @@ public class CategoriesController : ControllerBase {
         this.db = db;
     }
 
-    // GET /api/categories. Every category, sorted by name.
+    // GET /api/categories. Every category, sorted by name, with how many active and soft-deleted boxes use it.
     [HttpGet]
     public async Task<IActionResult> GetAll(CancellationToken ct) {
         await using var connection = await db.OpenConnectionAsync(ct);
-        var categories = await connection.QueryAsync<CategorySummary>(new CommandDefinition(
-            "SELECT id, name, symbol FROM CATEGORY ORDER BY name",
+        var categories = await connection.QueryAsync<CategoryListItem>(new CommandDefinition("""
+            SELECT
+                c.id, c.name, c.symbol,
+                COUNT(CASE WHEN b.id IS NOT NULL AND b.deleted_at IS NULL THEN 1 END) AS active_box_count,
+                COUNT(b.deleted_at) AS deleted_box_count
+            FROM CATEGORY AS c
+            LEFT JOIN BOX AS b ON b.category_id = c.id
+            GROUP BY c.id
+            ORDER BY c.name
+            """,
             cancellationToken: ct));
         return Ok(new { categories });
     }

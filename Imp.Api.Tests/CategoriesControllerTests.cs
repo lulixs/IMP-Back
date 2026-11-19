@@ -22,10 +22,10 @@ public class CategoriesControllerTests {
     private static async Task<object> ResponseAsync() =>
         Assert.IsType<OkObjectResult>(await Controller().GetAll(CancellationToken.None)).Value!;
 
-    private static async Task<List<CategorySummary>> CategoriesAsync() {
+    private static async Task<List<CategoryListItem>> CategoriesAsync() {
         var response = await ResponseAsync();
         var categories = response.GetType().GetProperty("categories")!.GetValue(response);
-        return Assert.IsAssignableFrom<IEnumerable<CategorySummary>>(categories).ToList();
+        return Assert.IsAssignableFrom<IEnumerable<CategoryListItem>>(categories).ToList();
     }
 
     // Tests
@@ -48,7 +48,70 @@ public class CategoriesControllerTests {
 
         Assert.Equal(new[] { "categories" }, json.EnumerateObject().Select(p => p.Name));
         var first = json.GetProperty("categories")[0];
-        Assert.Equal(new[] { "id", "name", "symbol" }, first.EnumerateObject().Select(p => p.Name));
+        Assert.Equal(new[] { "id", "name", "symbol", "activeBoxCount", "deletedBoxCount" },
+            first.EnumerateObject().Select(p => p.Name));
+    }
+
+    // Box counts (D-198)
+
+    [DatabaseFact]
+    public async Task Counts_SplitActiveAndSoftDeletedBoxes() {
+        // Active means not soft-deleted, racked or not.
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var categoryId = await data.CategoryAsync();
+        var buildingId = await data.BuildingAsync();
+        await data.BoxAsync(categoryId, buildingId, isRacked: true);
+        await data.BoxAsync(categoryId, buildingId, isRacked: false);
+        await data.SoftDeleteAsync(await data.BoxAsync(categoryId, buildingId, isRacked: true), db.EmployeeId);
+        await data.SoftDeleteAsync(await data.BoxAsync(categoryId, buildingId, isRacked: false), db.EmployeeId);
+        await data.SoftDeleteAsync(await data.BoxAsync(categoryId, buildingId), db.EmployeeId);
+
+        var category = Assert.Single(await CategoriesAsync(), c => c.Id == categoryId);
+
+        Assert.Equal(2, category.ActiveBoxCount);
+        Assert.Equal(3, category.DeletedBoxCount);
+    }
+
+    [DatabaseFact]
+    public async Task Counts_AreZeroForACategoryWithNoBoxes() {
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var emptyId = await data.CategoryAsync();
+        await data.BoxAsync(await data.CategoryAsync(), await data.BuildingAsync()); // a box somewhere else
+
+        var category = Assert.Single(await CategoriesAsync(), c => c.Id == emptyId);
+
+        Assert.Equal(0, category.ActiveBoxCount);
+        Assert.Equal(0, category.DeletedBoxCount);
+    }
+
+    [DatabaseFact]
+    public async Task Counts_IncludeBoxesInEveryBuilding() {
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var categoryId = await data.CategoryAsync();
+        await data.BoxAsync(categoryId, await data.BuildingAsync());
+        await data.BoxAsync(categoryId, await data.BuildingAsync());
+
+        var category = Assert.Single(await CategoriesAsync(), c => c.Id == categoryId);
+
+        Assert.Equal(2, category.ActiveBoxCount);
+    }
+
+    [DatabaseFact]
+    public async Task Counts_SoftDeletingABoxMovesItFromActiveToDeleted() {
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var categoryId = await data.CategoryAsync();
+        var boxId = await data.BoxAsync(categoryId, await data.BuildingAsync());
+
+        var before = Assert.Single(await CategoriesAsync(), c => c.Id == categoryId);
+        await data.SoftDeleteAsync(boxId, db.EmployeeId);
+        var after = Assert.Single(await CategoriesAsync(), c => c.Id == categoryId);
+
+        Assert.Equal((1, 0), (before.ActiveBoxCount, before.DeletedBoxCount));
+        Assert.Equal((0, 1), (after.ActiveBoxCount, after.DeletedBoxCount));
     }
 
     [DatabaseFact]
