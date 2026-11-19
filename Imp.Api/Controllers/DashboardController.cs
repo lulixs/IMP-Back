@@ -32,6 +32,7 @@ public class DashboardController : ControllerBase {
 
         var categories = await connection.QueryAsync<DashboardCategory>(
             // I Blame Luke for my pain and suffering
+            // luke: bruh
             new CommandDefinition("""
                 SELECT 
                     c.*, 

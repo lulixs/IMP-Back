@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), and Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts for boxes ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Every entry's `details` uses the shape in the Audit details section of [docs/api/boxes.md](docs/api/boxes.md), and the sample audit rows match it. `POST /api/setup` is the first endpoint to use it.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`), and one box (`GET /api/boxes/{id}`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). The rest of the boxes contract ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Every entry's `details` uses the shape in the Audit details section of [docs/api/boxes.md](docs/api/boxes.md), and the sample audit rows match it. `POST /api/setup` is the first endpoint to use it.
 
 ## Who does what
 
@@ -77,7 +77,8 @@ IMP-Back/
 │   │   ├── EmployeesController.cs    GET /api/employees/active (the names on the sign-in screen)
 │   │   ├── SessionsController.cs     POST /api/sessions (sign in) and DELETE /api/sessions/current (sign out)
 │   │   ├── MasterModeController.cs   POST /api/master-mode (turn on) and DELETE /api/master-mode (turn off)
-│   │   └── DashboardController.cs    GET /api/dashboard
+│   │   ├── DashboardController.cs    GET /api/dashboard
+│   │   └── BoxController.cs          GET /api/boxes/{id} (one box)
 │   ├── Data/                         database access code
 │   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
 │   │   ├── AuditAction.cs            the nine audit actions, named as in schema.sql
@@ -92,7 +93,11 @@ IMP-Back/
 │   ├── Models/                       C# classes that query results are turned into
 │   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
 │   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, renew, sign-in, and Master mode
-│   │   ├── EmployeeSummary.cs        one employee's id and name, for the sign-in screen
+│   │   ├── EmployeeSummary.cs        one employee's id and name, for the sign-in screen and inside a box
+│   │   ├── Box.cs                    a box in the JSON shape from boxes.md, built from a BoxSummary
+│   │   ├── BoxSummary.cs             one flat row from the box query, one property per column
+│   │   ├── CategorySummary.cs        a category's id, name, and symbol, inside a box
+│   │   ├── BuildingSummary.cs        a building's id and name, inside a box
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing, and sign-in tokens
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
@@ -187,7 +192,7 @@ Shortcuts exist for 400, 401, 403, 404, and 409. The caller gets that status and
 ### Everything else
 
 - **Any other exception** (a database error, a bug) returns 500 with `{"error": "Something went wrong. Please try again later.", "traceId": "..."}`. The real error is never sent to the app. To find it, search the log for the `traceId`.
-- **Bad request bodies** (unreadable JSON, wrong shape, missing body) return 400 with "The request body is invalid.", set by `InvalidModelStateResponseFactory` in `Program.cs`.
+- **Bad request bodies** (unreadable JSON, wrong shape, missing body, or a number sent as a string like `"2"`) return 400 with "The request body is invalid.", set by `InvalidModelStateResponseFactory` in `Program.cs`.
 - **Errors the framework makes with no body,** such as 404 for an unknown URL or 405 for the wrong method, get the same JSON shape from `UseStatusCodePages` in `Program.cs`.
 - If the caller disconnects mid-request, nothing is logged as an error.
 

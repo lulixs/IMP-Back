@@ -5,6 +5,7 @@ using Serilog.Events;
 using Imp.Api.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.OpenApi;
+using System.Text.Json.Serialization;
 
 Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 
@@ -55,7 +56,10 @@ builder.Services.AddControllers()
         options.InvalidModelStateResponseFactory = _ =>
             throw new ApiError(StatusCodes.Status400BadRequest, "The request body is invalid.");
     }
-);
+).AddJsonOptions(options => options.JsonSerializerOptions.NumberHandling = JsonNumberHandling.Strict);
+// Numbers must be sent as numbers, not strings (both copies of the JSON settings). Without Strict, the OpenAPI document
+// lists number parameters (like the box id) as integer or string, which Swagger UI can't fill in.
+builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.NumberHandling = JsonNumberHandling.Strict);
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi(options => {
     // Adds the Authorize button to Swagger, where a device or session token can be pasted in.
