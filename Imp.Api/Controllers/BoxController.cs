@@ -64,6 +64,20 @@ public class BoxController : ControllerBase
         
         string boxStructureListQuery = boxStructureQuery + " WHERE b.deleted_at IS NULL";
         
+        string? catPattern = search;
+        string? idPrefix = search;
+        if (!string.IsNullOrEmpty(search)) {
+            if (idPrefix![0] == '#') idPrefix = idPrefix.Substring(1);
+
+            if (int.TryParse(idPrefix, out _)) {
+                idPrefix += "%";
+                boxStructureListQuery += " AND CAST(b.id AS CHAR) LIKE @idPrefix";
+            } else {
+                catPattern = "%" + catPattern + "%";
+                boxStructureListQuery += " AND c.name LIKE @catPattern";
+            }
+        }
+
         int? catId = null;
         if (categoryId != null) {
             if (!int.TryParse(categoryId, out int parsed)) 
@@ -88,10 +102,14 @@ public class BoxController : ControllerBase
             boxStructureListQuery += " ORDER BY days_stored DESC, b.id";
         }
         await using var connection = await db.OpenConnectionAsync(ct);
-        
-        var boxList = await connection.QueryAsync<BoxSummary>(new CommandDefinition(
+        var today = StoreClock.Today();
 
+        var boxList = await connection.QueryAsync<BoxSummary>(new CommandDefinition(
+            boxStructureListQuery,
+            new {today, idPrefix, catPattern, catId, isRacked}, cancellationToken: ct
         ));
+
+        return Ok(new { boxes = boxList.Select(Box.FromRow) });
     }
 }
 

@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`), and one box (`GET /api/boxes/{id}`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). The rest of the boxes contract ([docs/api/boxes.md](docs/api/boxes.md)) and the category and building lists are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Every entry's `details` uses the shape in the Audit details section of [docs/api/boxes.md](docs/api/boxes.md), and the sample audit rows match it. `POST /api/setup` is the first endpoint to use it.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`), box search and one box (`GET /api/boxes` and `GET /api/boxes/{id}`), and the category and building lists (`GET /api/categories` and `GET /api/buildings`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Creating, saving, and deleting boxes ([docs/api/boxes.md](docs/api/boxes.md)) are written but not built yet. The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Every entry's `details` uses the shape in the Audit details section of [docs/api/boxes.md](docs/api/boxes.md), and the sample audit rows match it. `POST /api/setup` is the first endpoint to use it.
 
 ## Who does what
 
@@ -78,7 +78,9 @@ IMP-Back/
 │   │   ├── SessionsController.cs     POST /api/sessions (sign in) and DELETE /api/sessions/current (sign out)
 │   │   ├── MasterModeController.cs   POST /api/master-mode (turn on) and DELETE /api/master-mode (turn off)
 │   │   ├── DashboardController.cs    GET /api/dashboard
-│   │   └── BoxController.cs          GET /api/boxes/{id} (one box)
+│   │   ├── BoxController.cs          GET /api/boxes (search) and GET /api/boxes/{id} (one box)
+│   │   ├── CategoriesController.cs   GET /api/categories
+│   │   └── BuildingsController.cs    GET /api/buildings
 │   ├── Data/                         database access code
 │   │   ├── AuditLog.cs               writes one AUDIT_LOG entry, refusing pairs the ERD doesn't allow
 │   │   ├── AuditAction.cs            the nine audit actions, named as in schema.sql
@@ -96,8 +98,8 @@ IMP-Back/
 │   │   ├── EmployeeSummary.cs        one employee's id and name, for the sign-in screen and inside a box
 │   │   ├── Box.cs                    a box in the JSON shape from boxes.md, built from a BoxSummary
 │   │   ├── BoxSummary.cs             one flat row from the box query, one property per column
-│   │   ├── CategorySummary.cs        a category's id, name, and symbol, inside a box
-│   │   ├── BuildingSummary.cs        a building's id and name, inside a box
+│   │   ├── CategorySummary.cs        a category's id, name, and symbol, for the category list and inside a box
+│   │   ├── BuildingSummary.cs        a building's id and name, for the building list and inside a box
 │   │   └── DashboardCategory.cs      one category's row on the dashboard
 │   ├── Security/                     PIN and password hashing, and sign-in tokens
 │   │   ├── IPasswordHasher.cs        what controllers ask for to hash and check a PIN
@@ -122,9 +124,14 @@ IMP-Back/
     ├── AuditLogWriteTests.cs         AuditLog.WriteAsync against MySQL (needs the database)
     ├── MasterModeControllerTests.cs  POST and DELETE /api/master-mode (needs the database)
     ├── RequireMasterModeAttributeTests.cs  [RequireMasterMode] lets requests through only in Master mode
+    ├── BoxJsonTests.cs               Box.FromRow gives the JSON shape in boxes.md (field names, dates, nulls)
+    ├── BoxControllerTests.cs         GET /api/boxes/{id} and GET /api/boxes: fields, alerts, search, filters, sort (needs the database)
+    ├── CategoriesControllerTests.cs  GET /api/categories (needs the database)
+    ├── BuildingsControllerTests.cs   GET /api/buildings (needs the database)
     ├── TestDatabase.cs               gives each database test its own employee, tablet, and cleanup
     ├── TestSetup.cs                  runs before any test: turns on the same Dapper setting as Program.cs
     ├── Support/ErdRules.cs           the ERD's table of allowed audit pairs, for the tests
+    ├── Support/BoxTestData.cs        makes test categories, buildings, and boxes, and removes them afterward
     └── Imp.Api.Tests.csproj          test packages and a reference to Imp.Api
 ```
 
