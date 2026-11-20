@@ -89,7 +89,9 @@ Soft-deleted boxes are never included. There is no paging in Fall, so every matc
 
 | Status | When | `error` |
 |---|---|---|
-| 400 | `racked` isn't `true` or `false`, `sort` isn't `oldest` or `newest`, or `categoryId` isn't a number | A sentence naming the parameter, for example: Sort must be oldest or newest. |
+| 400 | `categoryId` isn't a number | Category ID must be a number. |
+| 400 | `racked` isn't `true` or `false` | Racked must be true or false. |
+| 400 | `sort` isn't `oldest` or `newest` | Sort must be oldest or newest. |
 
 ---
 
