@@ -1,6 +1,7 @@
 using System.Data.Common;
 using System.Reflection;
 using System.Text.Json;
+using Dapper;
 using Imp.Api.Controllers;
 using Imp.Api.Data;
 using Imp.Api.Errors;
@@ -63,6 +64,14 @@ public class BoxControllerTests {
     }
 
     // GET /api/boxes/{id}
+
+    [Fact]
+    public void GetBox_RouteOnlyMatchesNumbers() {
+        // {id:int}: /api/boxes/abc never reaches GetBox, so the framework answers 404 instead of a 400 about the body.
+        var get = typeof(BoxController).GetMethod(nameof(BoxController.GetBox))!.GetCustomAttribute<HttpGetAttribute>();
+
+        Assert.Equal("{id:int}", get!.Template);
+    }
 
     [DatabaseFact]
     public async Task GetBox_ReturnsEveryField() {
@@ -329,14 +338,17 @@ public class BoxControllerTests {
         await using var data = new BoxTestData(db);
         var racked = await data.LoneBoxAsync();
         var unracked = await data.LoneBoxAsync(isRacked: false);
-        var activeCount = await db.ScalarAsync<int>("SELECT COUNT(*) FROM BOX WHERE deleted_at IS NULL");
+        const string activeSql = "SELECT id FROM BOX WHERE deleted_at IS NULL";
+        var before = await db.Connection.QueryAsync<int>(activeSql);
 
         var ids = Ids(await SearchAsync());
+        var after = await db.Connection.QueryAsync<int>(activeSql);
 
         Assert.Contains(racked, ids);
         Assert.Contains(unracked, ids);
-        // Other test classes may add boxes at the same time, so allow for a few more than were counted.
-        Assert.True(ids.Count >= activeCount, $"Expected at least {activeCount} boxes, got {ids.Count}.");
+        // Other test classes add and remove boxes while this runs, so only the boxes there both before and
+        // after the search are sure to be in it.
+        Assert.All(before.Intersect(after), id => Assert.Contains(id, ids));
     }
 
     [DatabaseFact]
@@ -380,14 +392,17 @@ public class BoxControllerTests {
         var id = await data.LoneBoxAsync();
         var firstDigit = id.ToString()[..1];
 
+        const string matchingSql = "SELECT id FROM BOX WHERE deleted_at IS NULL AND CAST(id AS CHAR) LIKE @pattern";
+        var pattern = new { pattern = firstDigit + "%" };
+        var before = await db.Connection.QueryAsync<int>(matchingSql, pattern);
+
         var ids = Ids(await SearchAsync(search: firstDigit));
+        var after = await db.Connection.QueryAsync<int>(matchingSql, pattern);
 
         Assert.Contains(id, ids);
         Assert.All(ids, found => Assert.StartsWith(firstDigit, found.ToString()));
-        var allWithThatDigit = await db.ScalarAsync<int>(
-            "SELECT COUNT(*) FROM BOX WHERE deleted_at IS NULL AND CAST(id AS CHAR) LIKE @pattern",
-            new { pattern = firstDigit + "%" });
-        Assert.True(ids.Count >= allWithThatDigit, $"Expected at least {allWithThatDigit} boxes, got {ids.Count}.");
+        // As in the no-filter test: only boxes there before and after the search are sure to be in it.
+        Assert.All(before.Intersect(after), match => Assert.Contains(match, ids));
     }
 
     [DatabaseFact]
@@ -461,6 +476,24 @@ public class BoxControllerTests {
         var id = await data.BoxAsync(await data.CategoryAsync(name), await data.BuildingAsync());
 
         Assert.Equal(new[] { id }, Ids(await SearchAsync(search: name)));
+    }
+
+    [DatabaseTheory]
+    [InlineData("_")]
+    [InlineData("%")]
+    public async Task GetBoxes_SearchText_TreatsLikeWildcardsAsPlainCharacters(string character) {
+        // In SQL LIKE, _ and % match any character. Search must match them only as themselves.
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var withIt = await data.BoxAsync(await data.CategoryAsync("test" + character + Guid.NewGuid().ToString("N")),
+            await data.BuildingAsync());
+        var withoutIt = await data.LoneBoxAsync();
+
+        var boxes = await SearchAsync(search: character);
+
+        Assert.Contains(withIt, Ids(boxes));
+        Assert.DoesNotContain(withoutIt, Ids(boxes));
+        Assert.All(boxes, box => Assert.Contains(character, box.Category.Name));
     }
 
     [DatabaseFact]

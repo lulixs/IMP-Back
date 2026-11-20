@@ -138,9 +138,13 @@ public class CategoriesControllerTests {
         await using var db = await TestDatabase.CreateAsync();
         await using var data = new BoxTestData(db);
         var emptyId = await data.CategoryAsync();
-        var allIds = (await db.Connection.QueryAsync<int>("SELECT id FROM CATEGORY")).ToList();
+        var before = await db.Connection.QueryAsync<int>("SELECT id FROM CATEGORY");
 
         var ids = (await CategoriesAsync()).Select(c => c.Id).ToList();
+        var after = await db.Connection.QueryAsync<int>("SELECT id FROM CATEGORY");
+        // Other test classes add and remove rows while this runs, so only the ones there both before and after
+        // the call are sure to be listed.
+        var allIds = before.Intersect(after).ToList();
 
         Assert.Contains(emptyId, ids);
         Assert.All(allIds, id => Assert.Contains(id, ids));
@@ -167,9 +171,10 @@ public class CategoriesControllerTests {
         await using var db = await TestDatabase.CreateAsync();
 
         var ids = (await CategoriesAsync()).Select(c => c.Id).ToArray();
-        var expected = await db.Connection.QueryAsync<int>(
-            "SELECT id FROM CATEGORY WHERE id IN @ids ORDER BY name", new { ids });
+        var expected = (await db.Connection.QueryAsync<int>(
+            "SELECT id FROM CATEGORY WHERE id IN @ids ORDER BY name", new { ids })).ToList();
 
-        Assert.Equal(expected, ids);
+        // A row another test removes in between is missing from expected, so compare only the rows still there.
+        Assert.Equal(expected, ids.Where(expected.Contains));
     }
 }

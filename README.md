@@ -172,12 +172,14 @@ Each endpoint's JSON shape is written in `docs/api/` before the endpoint is buil
 
 To add an endpoint, add a method to a controller (or a new class in `Controllers/` whose name ends in `Controller`). It shows up in Swagger automatically.
 
+Write a number in a URL as `{id:int}`, not `{id}`, for example `[HttpGet("{id:int}")]`. Then `/api/boxes/abc` never reaches the method and gets the framework's 404, "This address doesn't exist on the server.", instead of a 400 that talks about the request body.
+
 ## Endpoints that need Master mode
 
 Put `[RequireMasterMode]` (`Imp.Api/Security/RequireMasterModeAttribute.cs`) on an endpoint, or on a whole controller, that only works in Master mode:
 
 ```csharp
-[HttpDelete("{id}")]
+[HttpDelete("{id:int}")]
 [RequireMasterMode]
 public async Task<IActionResult> Remove(int id, CancellationToken ct) { ... }
 ```

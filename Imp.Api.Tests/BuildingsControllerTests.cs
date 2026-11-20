@@ -131,9 +131,13 @@ public class BuildingsControllerTests {
         await using var db = await TestDatabase.CreateAsync();
         await using var data = new BoxTestData(db);
         var emptyId = await data.BuildingAsync();
-        var allIds = (await db.Connection.QueryAsync<int>("SELECT id FROM BUILDING")).ToList();
+        var before = await db.Connection.QueryAsync<int>("SELECT id FROM BUILDING");
 
         var ids = (await BuildingsAsync()).Select(b => b.Id).ToList();
+        var after = await db.Connection.QueryAsync<int>("SELECT id FROM BUILDING");
+        // Other test classes add and remove rows while this runs, so only the ones there both before and after
+        // the call are sure to be listed.
+        var allIds = before.Intersect(after).ToList();
 
         Assert.Contains(emptyId, ids);
         Assert.All(allIds, id => Assert.Contains(id, ids));
@@ -160,9 +164,10 @@ public class BuildingsControllerTests {
         await using var db = await TestDatabase.CreateAsync();
 
         var ids = (await BuildingsAsync()).Select(b => b.Id).ToArray();
-        var expected = await db.Connection.QueryAsync<int>(
-            "SELECT id FROM BUILDING WHERE id IN @ids ORDER BY name", new { ids });
+        var expected = (await db.Connection.QueryAsync<int>(
+            "SELECT id FROM BUILDING WHERE id IN @ids ORDER BY name", new { ids })).ToList();
 
-        Assert.Equal(expected, ids);
+        // A row another test removes in between is missing from expected, so compare only the rows still there.
+        Assert.Equal(expected, ids.Where(expected.Contains));
     }
 }

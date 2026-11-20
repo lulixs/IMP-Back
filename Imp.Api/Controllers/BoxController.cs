@@ -7,7 +7,6 @@ using Imp.Api.Data;
 using Dapper;
 using Imp.Api.Models;
 using Imp.Api.Errors;
-using System.Diagnostics.Eventing.Reader;
 
 namespace Imp.Api.Controllers;
 
@@ -41,8 +40,9 @@ public class BoxController : ControllerBase
         this.db = db;
     }
 
-    // GET /api/boxes/{box id}
-    [HttpGet("{id}")]
+    // GET /api/boxes/{id}. {id:int} means a box number that isn't a number never reaches this method:
+    // the framework answers 404, as for any address that doesn't exist.
+    [HttpGet("{id:int}")]
     public async Task<IActionResult> GetBox(int id, CancellationToken ct) {
         await using var connection = await db.OpenConnectionAsync(ct);
         var today = StoreClock.Today();
@@ -64,7 +64,7 @@ public class BoxController : ControllerBase
         
         string boxStructureListQuery = boxStructureQuery + " WHERE b.deleted_at IS NULL";
         
-        string? catPattern = search;
+        string? catSearch = search;
         string? idPrefix = search;
         if (!string.IsNullOrEmpty(search)) {
             if (idPrefix![0] == '#') idPrefix = idPrefix.Substring(1);
@@ -73,8 +73,9 @@ public class BoxController : ControllerBase
                 idPrefix += "%";
                 boxStructureListQuery += " AND CAST(b.id AS CHAR) LIKE @idPrefix";
             } else {
-                catPattern = "%" + catPattern + "%";
-                boxStructureListQuery += " AND c.name LIKE @catPattern";
+                // LOCATE, not LIKE, so _ and % in the search are plain characters instead of wildcards.
+                // It ignores capitals the same way, through the column's collation.
+                boxStructureListQuery += " AND LOCATE(@catSearch, c.name) > 0";
             }
         }
 
@@ -106,7 +107,7 @@ public class BoxController : ControllerBase
 
         var boxList = await connection.QueryAsync<BoxSummary>(new CommandDefinition(
             boxStructureListQuery,
-            new {today, idPrefix, catPattern, catId, isRacked}, cancellationToken: ct
+            new {today, idPrefix, catSearch, catId, isRacked}, cancellationToken: ct
         ));
 
         return Ok(new { boxes = boxList.Select(Box.FromRow) });
