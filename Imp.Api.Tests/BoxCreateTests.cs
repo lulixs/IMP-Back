@@ -18,8 +18,8 @@ namespace Imp.Api.Tests;
 // test creates is tracked and removed afterward.
 public class BoxCreateTests {
     // The sentences the controller sends.
-    private const string NoCategory = "Category cannot be null.";
-    private const string NoBuilding = "Building cannot be null.";
+    private const string NoCategory = "Category is required.";
+    private const string NoBuilding = "Building is required.";
     private const string BadShelfLetter = "Shelf letter must be one to three capital letters.";
     private const string BadShelfLevel = "Shelf level must be 1, 2, or 3.";
     private const string BadFullness = "Fullness must be FULL, HALF, or EMPTY.";

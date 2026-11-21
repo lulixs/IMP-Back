@@ -82,7 +82,7 @@ builder.Services.AddOpenApi(options => {
     options.AddSchemaTransformer((schema, context, ct) => {
         var property = context.JsonPropertyInfo;
         if (property?.DeclaringType == typeof(Imp.Api.Models.SaveBoxRequest) && property.Name == "lastUpdatedAt")
-            schema.Example = System.Text.Json.Nodes.JsonValue.Create("copy from GET /api/boxes/{id}, or null");
+            schema.Examples = [System.Text.Json.Nodes.JsonValue.Create("copy from GET /api/boxes/{id}, or null")];
         return Task.CompletedTask;
     });
 });

@@ -197,7 +197,7 @@ The saved box, in the box shape above. If nothing changed, the box comes back as
 
 When something changed, the server, in one transaction:
 
-- saves the fields and sets `last_updated_at` to now and `last_updated_by` from the session token
+- saves the fields and sets `last_updated_by` from the session token, and `last_updated_at` to now, or to one second after its previous value if that is later, so every save gives the box a new `lastUpdatedAt` (D-212)
 - writes one audit entry for each kind of change, with the label `#6789` (D-170):
   - UNRACKED when `isRacked` goes from true to false
   - RACKED when it goes from false to true, with the location and whether the storage timer was reset
@@ -295,4 +295,4 @@ Saves and deletes of the same box take turns: the second one waits until the fir
 
 Reading a box never waits, and changes to different boxes never wait on each other.
 
-One case is not caught, because `lastUpdatedAt` is stored to the second (D-174). If a box is saved twice within the same second, a tablet that loaded it between those two saves has the same `lastUpdatedAt` as the second save, so its own save goes through without a 409 and overwrites the second save.
+`lastUpdatedAt` is stored to the whole second, so two saves within the same second could otherwise leave the same value. Each save therefore moves it at least one second past the previous value (D-212), and every save is caught. When a box is saved several times in a row, its `lastUpdatedAt` can run a few seconds ahead of the real time.

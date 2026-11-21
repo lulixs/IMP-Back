@@ -252,12 +252,14 @@ public class BoxController : ControllerBase
             return Ok((await LoadBoxAsync(connection, id, ct))!);
         }
 
+        // lastUpdatedAt always moves forward, at least 1s, so same-second saves still differ (409 check)
         await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE BOX
             SET category_id = @catId, building_id = @buildId, shelf_letter = @letter, shelf_level = @level,
                 fullness = @fullness, notes = @notes, is_racked = @isRacked, racked_since = @since,
-                last_updated_at = UTC_TIMESTAMP(), last_updated_by = @employeeId
+                last_updated_at = GREATEST(UTC_TIMESTAMP(), COALESCE(last_updated_at + INTERVAL 1 SECOND, UTC_TIMESTAMP())),
+                last_updated_by = @employeeId
             WHERE id = @id
             """,
             new { id, catId = request.CategoryID, buildId = request.BuildingID, letter, level, fullness, notes,
@@ -346,10 +348,10 @@ public class BoxController : ControllerBase
     // shared POST/PUT rules
     private static void CheckFields(BoxFields request) {
         if (request.CategoryID == null || request.CategoryID < 0) 
-            throw ApiError.BadRequest("Category cannot be null.");
+            throw ApiError.BadRequest("Category is required.");
 
         if (request.BuildingID == null || request.BuildingID < 0) 
-            throw ApiError.BadRequest("Building cannot be null.");
+            throw ApiError.BadRequest("Building is required.");
 
         if (request.ShelfLetter == null || !Regex.IsMatch(request.ShelfLetter, @"^[A-Z]{1,3}\z")) 
             throw ApiError.BadRequest("Shelf letter must be one to three capital letters.");

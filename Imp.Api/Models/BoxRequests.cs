@@ -20,6 +20,7 @@ public class SaveBoxRequest : BoxFields {
     public bool? IsRacked { get; set; }
     // only used on re-rack
     public bool? ResetRackedSince { get; set; }
-    // as loaded. null = never edited
+    // as loaded. null = never edited. must be sent, even as null (missing -> 400)
+    [System.Text.Json.Serialization.JsonRequired]
     public DateTime? LastUpdatedAt { get; set; }
 }

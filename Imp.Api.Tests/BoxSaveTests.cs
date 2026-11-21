@@ -144,6 +144,14 @@ public class BoxSaveTests {
     }
 
     [Fact]
+    public void Request_LastUpdatedAtLeftOut_IsRefused() {
+        // [JsonRequired]: null ok, missing -> 400 "The request body is invalid."
+        const string json = """{"categoryId": 1, "isRacked": true, "resetRackedSince": false}""";
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<SaveBoxRequest>(json, JsonSerializerOptions.Web));
+    }
+
+    [Fact]
     public void Request_SwaggerPlaceholderIsNotADate() {
         // Program.cs example text. unreadable body -> 400 "The request body is invalid."
         const string json = """{"lastUpdatedAt": "copy from GET /api/boxes/{id}, or null"}""";
@@ -169,9 +177,9 @@ public class BoxSaveTests {
     public async Task SharedRules_AreChecked() {
         // full rule coverage is in BoxCreateTests, same CheckFields
         var r = Valid(); r.CategoryID = null;
-        await AssertOfflineBadRequestAsync(r, "Category cannot be null.");
+        await AssertOfflineBadRequestAsync(r, "Category is required.");
         r = Valid(); r.BuildingID = null;
-        await AssertOfflineBadRequestAsync(r, "Building cannot be null.");
+        await AssertOfflineBadRequestAsync(r, "Building is required.");
         r = Valid(); r.ShelfLetter = "abcd";
         await AssertOfflineBadRequestAsync(r, "Shelf letter must be one to three capital letters.");
         r = Valid(); r.ShelfLevel = 4;
@@ -347,6 +355,45 @@ public class BoxSaveTests {
 
         Assert.Equal(new[] { 200, 409 }, statuses.OrderBy(x => x));
         Assert.Single(await db.RowsAsync());
+    }
+
+    [DatabaseFact]
+    public async Task Save_AlwaysMovesLastUpdatedAtForward() {
+        // stored time ahead of now = a save earlier this second. next save must still differ
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var s = await BoxAsync(db, data);
+        await db.ExecuteAsync("UPDATE BOX SET last_updated_at = UTC_TIMESTAMP() + INTERVAL 30 SECOND WHERE id = @id",
+            new { id = s.Box.Id });
+        var loaded = await GetAsync(db, s.Box.Id);
+        var request = SaveFrom(loaded);
+        request.Fullness = "HALF";
+
+        var saved = await SaveAsync(db, s.Box.Id, request);
+
+        Assert.Equal(loaded.LastUpdatedAt!.Value.AddSeconds(1), saved.LastUpdatedAt);
+    }
+
+    [DatabaseFact]
+    public async Task SameSecond_ThirdTabletWithACopyFromBetween_Is409() {
+        // the gap from the review: saved, loaded by C, saved again in the same second, then C saves
+        await using var db = await TestDatabase.CreateAsync();
+        await using var data = new BoxTestData(db);
+        var s = await BoxAsync(db, data);
+        var first = SaveFrom(s.Box);
+        first.Fullness = "HALF";
+        var afterFirst = await SaveAsync(db, s.Box.Id, first);
+        var copyC = await GetAsync(db, s.Box.Id);
+        var second = SaveFrom(afterFirst);
+        second.Fullness = "EMPTY";
+        await SaveAsync(db, s.Box.Id, second);
+        var fromC = SaveFrom(copyC);
+        fromC.Notes = "from C";
+
+        var error = await RefusedAsync(db, s.Box.Id, fromC);
+
+        Assert.Equal(409, error.StatusCode);
+        Assert.Equal("EMPTY", (await GetAsync(db, s.Box.Id)).Fullness);
     }
 
     // 400 after loading

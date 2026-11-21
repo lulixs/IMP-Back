@@ -193,6 +193,7 @@ var box = await connection.QuerySingleOrDefaultAsync<BoxSummary>(new CommandDefi
 - Plain reads (GET endpoints) don't lock and never wait.
 - When the query joins other tables, add `OF` with the alias of the table being changed (`FOR UPDATE OF b`), so the joined rows (a category, a building) aren't locked too.
 - `PUT /api/boxes/{id}` and `DELETE /api/boxes/{id}` in `BoxController.cs` do this. Their simultaneous-request tests in `BoxSaveTests.cs` and `BoxDeleteTests.cs` fail if the lock is removed.
+- If the endpoint sets `last_updated_at` and a later save compares it (D-174), set it with `GREATEST(UTC_TIMESTAMP(), COALESCE(last_updated_at + INTERVAL 1 SECOND, UTC_TIMESTAMP()))`, as `PUT /api/boxes/{id}` does. The column holds whole seconds, so plain `UTC_TIMESTAMP()` could give two saves in the same second the same value, and the second would slip past the 409 check (D-212).
 - The app-visible result is in the contract, for example Two tablets at once in [docs/api/boxes.md](docs/api/boxes.md).
 
 ## Endpoints that need Master mode
