@@ -143,6 +143,14 @@ public class BoxSaveTests {
         Assert.Null(request.ResetRackedSince);
     }
 
+    [Fact]
+    public void Request_SwaggerPlaceholderIsNotADate() {
+        // Program.cs example text. unreadable body -> 400 "The request body is invalid."
+        const string json = """{"lastUpdatedAt": "copy from GET /api/boxes/{id}, or null"}""";
+
+        Assert.Throws<JsonException>(() => JsonSerializer.Deserialize<SaveBoxRequest>(json, JsonSerializerOptions.Web));
+    }
+
     // 400 before any query
 
     private static SaveBoxRequest Valid() => new() {

@@ -179,6 +179,22 @@ To add an endpoint, add a method to a controller (or a new class in `Controllers
 
 Write a number in a URL as `{id:int}`, not `{id}`, for example `[HttpGet("{id:int}")]`. Then `/api/boxes/abc` never reaches the method and gets the framework's 404, "This address doesn't exist on the server.", instead of a 400 that talks about the request body.
 
+## Endpoints that change a row
+
+Read the row with `SELECT ... FOR UPDATE` inside the transaction, before checking it and changing it:
+
+```csharp
+await using var transaction = await connection.BeginTransactionAsync(ct);
+var box = await connection.QuerySingleOrDefaultAsync<BoxSummary>(new CommandDefinition(
+    "SELECT * FROM BOX WHERE id = @id FOR UPDATE", new { id }, transaction, cancellationToken: ct));
+```
+
+- `FOR UPDATE` locks the row until the transaction commits or rolls back. Another request that locks the same row waits, then reads the row as the first one left it. Without it, two requests can both pass a check (such as the `lastUpdatedAt` match) and the second silently overwrites the first.
+- Plain reads (GET endpoints) don't lock and never wait.
+- When the query joins other tables, add `OF` with the alias of the table being changed (`FOR UPDATE OF b`), so the joined rows (a category, a building) aren't locked too.
+- `PUT /api/boxes/{id}` and `DELETE /api/boxes/{id}` in `BoxController.cs` do this. Their simultaneous-request tests in `BoxSaveTests.cs` and `BoxDeleteTests.cs` fail if the lock is removed.
+- The app-visible result is in the contract, for example Two tablets at once in [docs/api/boxes.md](docs/api/boxes.md).
+
 ## Endpoints that need Master mode
 
 Put `[RequireMasterMode]` (`Imp.Api/Security/RequireMasterModeAttribute.cs`) on an endpoint, or on a whole controller, that only works in Master mode:

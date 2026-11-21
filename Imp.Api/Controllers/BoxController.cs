@@ -48,15 +48,11 @@ public class BoxController : ControllerBase
     [HttpGet("{id:int}")]
     public async Task<IActionResult> GetBox(int id, CancellationToken ct) {
         await using var connection = await db.OpenConnectionAsync(ct);
-        var today = StoreClock.Today();
-        
-        var box = await connection.QuerySingleOrDefaultAsync<BoxSummary>(new CommandDefinition(
-            boxStructureQuery + " WHERE b.id = @id", 
-            new {id, today}, cancellationToken: ct
-        ));
+
+        var box = await LoadBoxAsync(connection, id, ct);
 
         if (box == null) throw ApiError.NotFound("This box doesn't exist.");
-        return Ok(Box.FromRow(box));
+        return Ok(box);
     }
 
     // GET /api/boxes
@@ -169,7 +165,7 @@ public class BoxController : ControllerBase
         await transaction.CommitAsync(ct);
 
         // 201 + Location header
-        return CreatedAtAction(nameof(GetBox), new { id = boxId }, await LoadBoxAsync(connection, boxId, ct));
+        return CreatedAtAction(nameof(GetBox), new { id = boxId }, (await LoadBoxAsync(connection, boxId, ct))!);
     }
 
     // PUT /api/boxes/{id}. saves every field, incl. rack/unrack (D-170)
@@ -253,7 +249,7 @@ public class BoxController : ControllerBase
         // nothing changed: no write, lastUpdatedAt kept
         if (!reRack && !unrack && editedChanges.Count == 0) {
             await transaction.RollbackAsync(ct);
-            return Ok(await LoadBoxAsync(connection, id, ct));
+            return Ok((await LoadBoxAsync(connection, id, ct))!);
         }
 
         await connection.ExecuteAsync(new CommandDefinition(
@@ -291,7 +287,7 @@ public class BoxController : ControllerBase
 
         await transaction.CommitAsync(ct);
 
-        return Ok(await LoadBoxAsync(connection, id, ct));
+        return Ok((await LoadBoxAsync(connection, id, ct))!);
     }
 
     // DELETE /api/boxes/{id}. soft delete, any employee
@@ -402,10 +398,10 @@ public class BoxController : ControllerBase
         connection.ExecuteScalarAsync<bool>(new CommandDefinition(
             "SELECT is_elevated FROM DEVICE WHERE id = @deviceId", new { deviceId }, transaction, cancellationToken: ct));
 
-    // full box shape, same as GET
-    private static async Task<Box> LoadBoxAsync(DbConnection connection, int id, CancellationToken ct) {
-        var row = await connection.QuerySingleAsync<BoxSummary>(new CommandDefinition(
+    // full box shape. null = no box. ! where it was just written
+    private static async Task<Box?> LoadBoxAsync(DbConnection connection, int id, CancellationToken ct) {
+        var row = await connection.QuerySingleOrDefaultAsync<BoxSummary>(new CommandDefinition(
             boxStructureQuery + " WHERE b.id = @id", new { id, today = StoreClock.Today() }, cancellationToken: ct));
-        return Box.FromRow(row);
+        return row == null ? null : Box.FromRow(row);
     }
 }
