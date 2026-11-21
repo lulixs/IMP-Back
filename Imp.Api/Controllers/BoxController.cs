@@ -294,6 +294,51 @@ public class BoxController : ControllerBase
         return Ok(await LoadBoxAsync(connection, id, ct));
     }
 
+    // DELETE /api/boxes/{id}. soft delete, any employee
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteBox(int id, CancellationToken ct) {
+        int employeeId = User.GetEmployeeId()!.Value;
+        int deviceId = User.GetDeviceId()!.Value;
+        await using var connection = await db.OpenConnectionAsync(ct);
+
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+
+        // lock row. null = no box
+        bool? deleted = await connection.ExecuteScalarAsync<bool?>(new CommandDefinition(
+            "SELECT deleted_at IS NOT NULL FROM BOX WHERE id = @id FOR UPDATE",
+            new { id }, transaction, cancellationToken: ct
+        ));
+
+        if (deleted == null) throw ApiError.NotFound("This box doesn't exist.");
+        if (deleted.Value) throw ApiError.NotFound("This box was deleted.");
+
+        // also counts as an update (D-176). same timestamp for both
+        await connection.ExecuteAsync(new CommandDefinition(
+            """
+            UPDATE BOX
+            SET deleted_at = UTC_TIMESTAMP(), deleted_by = @employeeId,
+                last_updated_at = UTC_TIMESTAMP(), last_updated_by = @employeeId
+            WHERE id = @id
+            """,
+            new { id, employeeId }, transaction, cancellationToken: ct
+        ));
+
+        // no details for DELETED
+        await AuditLog.WriteAsync(connection, new AuditEntry {
+            EmployeeId = employeeId,
+            IsElevated = await IsElevatedAsync(connection, transaction, deviceId, ct),
+            DeviceId = deviceId,
+            ActionType = AuditAction.DELETED,
+            TargetType = AuditTarget.BOX,
+            TargetId = id,
+            TargetLabel = $"#{id}",
+        }, transaction, ct);
+
+        await transaction.CommitAsync(ct);
+
+        return NoContent();
+    }
+
     // Helpers
 
     // one audit change: {"field", "from", "to"}
