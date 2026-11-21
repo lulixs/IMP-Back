@@ -65,6 +65,9 @@ public sealed class BoxTestData : IAsyncDisposable {
         return id;
     }
 
+    // Removes a box made somewhere else (for example by POST /api/boxes) along with this test's other rows.
+    public void Track(int boxId) => _boxIds.Add(boxId);
+
     // A box in a new category and building of its own.
     public async Task<int> LoneBoxAsync(DateTime? rackedSince = null, bool isRacked = true) =>
         await BoxAsync(await CategoryAsync(), await BuildingAsync(), rackedSince, isRacked);

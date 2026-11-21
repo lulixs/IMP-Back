@@ -7,6 +7,7 @@ using Imp.Api.Data;
 using Dapper;
 using Imp.Api.Models;
 using Imp.Api.Errors;
+using System.Text.RegularExpressions;
 
 namespace Imp.Api.Controllers;
 
@@ -112,8 +113,98 @@ public class BoxController : ControllerBase
 
         return Ok(new { boxes = boxList.Select(Box.FromRow) });
     }
+
+    // POST /api/boxes
+    [HttpPost]
+    public async Task<IActionResult> AddBox(NewBoxRequest request, CancellationToken ct) {
+        if (request.CategoryID == null || request.CategoryID < 0) 
+            throw ApiError.BadRequest("Category cannot be null.");
+
+        if (request.BuildingID == null || request.BuildingID < 0) 
+            throw ApiError.BadRequest("Building cannot be null.");
+
+        if (request.ShelfLetter == null || !Regex.IsMatch(request.ShelfLetter, @"^[A-Z]{1,3}\z")) 
+            throw ApiError.BadRequest("Shelf letter must be one to three capital letters.");
+        
+        if (request.ShelfLevel is not (1 or 2 or 3))
+            throw ApiError.BadRequest("Shelf level must be 1, 2, or 3.");
+
+        if (request.Fullness is not ("FULL" or "HALF" or "EMPTY"))
+            throw ApiError.BadRequest("Fullness must be FULL, HALF, or EMPTY.");
+
+        DateOnly date;
+        if (!DateOnly.TryParseExact(request.RackedSince, "yyyy-MM-dd", out date)) {
+            throw ApiError.BadRequest("Racked since must be of the form yyyy-MM-dd.");
+        }
+
+        if (date > DateOnly.FromDateTime(StoreClock.Today())) {
+            throw ApiError.BadRequest("The storage date cannot be in the future.");
+        }
+
+        int employeeId = User.GetEmployeeId()!.Value;
+        int deviceId = User.GetDeviceId()!.Value;
+        await using var connection = await db.OpenConnectionAsync(ct);
+
+        await using var transaction = await connection.BeginTransactionAsync(ct);
+
+        bool categoryExists = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+            "SELECT EXISTS(SELECT 1 FROM CATEGORY WHERE id = @categoryId)",
+            new { categoryId = request.CategoryID }, cancellationToken: ct, transaction: transaction
+        ));
+
+        if (!categoryExists)
+            throw ApiError.BadRequest("That category no longer exists. Choose another.");
+        
+        bool buildingExists = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+            "SELECT EXISTS(SELECT 1 FROM BUILDING WHERE id = @buildingId)",
+            new { buildingId = request.BuildingID }, cancellationToken: ct, transaction: transaction
+        ));
+
+        if (!buildingExists)
+            throw ApiError.BadRequest("That building no longer exists. Choose another.");
+        
+        bool isElevated = await connection.ExecuteScalarAsync<bool>(new CommandDefinition(
+            "SELECT is_elevated FROM DEVICE WHERE id = @deviceId",
+            new { deviceId }, cancellationToken: ct, transaction: transaction
+        ));
+
+        // Notes are trimmed, and blank becomes null (boxes.md).
+        string? notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim();
+
+        int boxId = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+            """
+            INSERT INTO BOX (category_id, building_id, shelf_letter, shelf_level, 
+                fullness, notes, racked_since, created_by, created_at)
+            VALUES (@catId, @buildId, @letter, @level, @fullness, @notes, @date, 
+                @employeeId, UTC_TIMESTAMP());
+            SELECT LAST_INSERT_ID();
+            """,
+            new { catId = request.CategoryID, buildId = request.BuildingID, letter = request.ShelfLetter, 
+                level = request.ShelfLevel, fullness = request.Fullness, notes,
+                date = date.ToDateTime(TimeOnly.MinValue), employeeId},
+            cancellationToken: ct, transaction: transaction
+        ));
+
+        // BOX ADDED, labeled with the box number. ADDED has no details (boxes.md).
+        await AuditLog.WriteAsync(connection, new AuditEntry {
+            EmployeeId = employeeId,
+            IsElevated = isElevated,
+            DeviceId = deviceId,
+            ActionType = AuditAction.ADDED,
+            TargetType = AuditTarget.BOX,
+            TargetId = boxId,
+            TargetLabel = $"#{boxId}",
+        }, transaction, ct);
+
+        await transaction.CommitAsync(ct);
+
+        // Reply with the new box in the full box shape, read the same way GetBox does.
+        var row = await connection.QuerySingleAsync<BoxSummary>(new CommandDefinition(
+            boxStructureQuery + " WHERE b.id = @id",
+            new { id = boxId, today = StoreClock.Today() }, cancellationToken: ct
+        ));
+
+        // 201 Created, with a Location header pointing to GET /api/boxes/{id}.
+        return CreatedAtAction(nameof(GetBox), new { id = boxId }, Box.FromRow(row));
+    }
 }
-
-
-
-
