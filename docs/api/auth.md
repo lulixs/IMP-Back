@@ -33,9 +33,9 @@ Errors use the shared format in [README.md](README.md) (D-165). Each endpoint be
 
 | Status | When | `error` | `code` | What the app does |
 |---|---|---|---|---|
-| 401 | Device token missing, not valid, or the tablet's row doesn't exist | This tablet isn't set up. Set it up again. | `deviceNotSetUp` | Clear the device token and open tablet setup |
+| 401 | Device token missing, not valid, or the tablet's row doesn't exist | This tablet isn't set up. Set it up again. | `deviceNotSetUp` | Clear the device token and open the start page, which opens tablet setup, or first-time setup if `GET /api/setup/status` says the store isn't set up (D-213) |
 | 401 | Device token expired | Sign this tablet back in. | `deviceExpired` | Open the Master sign-in screen in sign-back-in mode |
-| 401 | The tablet was removed (`DEVICE.removed_at` is set) | This tablet was removed. Set it up again. | `deviceRemoved` | Clear both tokens and open tablet setup |
+| 401 | The tablet was removed (`DEVICE.removed_at` is set) | This tablet was removed. Set it up again. | `deviceRemoved` | Clear both tokens and open the start page, which opens tablet setup, or first-time setup if `GET /api/setup/status` says the store isn't set up (D-213) |
 | 401 | Session token missing, not valid, or expired, the tablet no longer names this employee (signed out, Switch user, idle sign-out, or someone else signed in), or the employee is deactivated | You've been signed out. Sign in again. | `sessionEnded` | Clear the session token and open employee sign-in |
 
 On a request with a session token, the server checks, in order: the signature and `exp`, that the tablet isn't removed, that `DEVICE.active_employee_id` equals `sub`, and that the employee is activated. A session token never gets `deviceExpired`. The 90-day approval is checked at sign-in (D-164).

@@ -310,12 +310,14 @@ public class BoxController : ControllerBase
         if (deleted == null) throw ApiError.NotFound("This box doesn't exist.");
         if (deleted.Value) throw ApiError.NotFound("This box was deleted.");
 
-        // also counts as an update (D-176). same timestamp for both
+        // also counts as an update (D-176), so last_updated_at moves forward like a save (D-212).
+        // MySQL assigns left to right, so deleted_at copies the new last_updated_at and both match
         await connection.ExecuteAsync(new CommandDefinition(
             """
             UPDATE BOX
-            SET deleted_at = UTC_TIMESTAMP(), deleted_by = @employeeId,
-                last_updated_at = UTC_TIMESTAMP(), last_updated_by = @employeeId
+            SET last_updated_at = GREATEST(UTC_TIMESTAMP(), COALESCE(last_updated_at + INTERVAL 1 SECOND, UTC_TIMESTAMP())),
+                last_updated_by = @employeeId,
+                deleted_at = last_updated_at, deleted_by = @employeeId
             WHERE id = @id
             """,
             new { id, employeeId }, transaction, cancellationToken: ct

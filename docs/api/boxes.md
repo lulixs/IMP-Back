@@ -123,8 +123,8 @@ Creates a box. Used by New Box (wireframe 07). "Save and print label" uses the `
 
 ```json
 {
-  "categoryId": 1,
-  "buildingId": 2,
+  "categoryID": 1,
+  "buildingID": 2,
   "shelfLetter": "A",
   "shelfLevel": 2,
   "fullness": "FULL",
@@ -135,8 +135,8 @@ Creates a box. Used by New Box (wireframe 07). "Save and print label" uses the `
 
 | Field | Type | Meaning |
 |---|---|---|
-| `categoryId` | int | Required. An existing category |
-| `buildingId` | int | Required. An existing building |
+| `categoryID` | int | Required. An existing category |
+| `buildingID` | int | Required. An existing building |
 | `shelfLetter` | string | Required. One to three capital letters, A to Z. The app makes the letters capitals before sending |
 | `shelfLevel` | int | Required. 1, 2, or 3 |
 | `fullness` | string | Required. `EMPTY`, `HALF`, or `FULL` |
@@ -157,7 +157,7 @@ The server, in one transaction:
 | Status | When | `error` |
 |---|---|---|
 | 400 | A required field is missing, or a value breaks its rule | A sentence naming the field, for example: Shelf letter must be one to three capital letters. |
-| 400 | `rackedSince` is after today | The storage date can't be in the future. |
+| 400 | `rackedSince` is after today | The storage date cannot be in the future. |
 | 400 | The category or building doesn't exist (deleted while the form was open) | That category no longer exists. Choose another. (or building) |
 
 ---
@@ -170,8 +170,8 @@ Saves every field of a box at once. Used by Save changes on the Box page, includ
 
 ```json
 {
-  "categoryId": 1,
-  "buildingId": 3,
+  "categoryID": 1,
+  "buildingID": 3,
   "shelfLetter": "C",
   "shelfLevel": 1,
   "fullness": "HALF",
@@ -184,7 +184,7 @@ Saves every field of a box at once. Used by Save changes on the Box page, includ
 
 | Field | Type | Meaning |
 |---|---|---|
-| `categoryId`, `buildingId`, `shelfLetter`, `shelfLevel`, `fullness`, `notes` | | The same rules as `POST /api/boxes`. Send every field, changed or not |
+| `categoryID`, `buildingID`, `shelfLetter`, `shelfLevel`, `fullness`, `notes` | | The same rules as `POST /api/boxes`. Send every field, changed or not |
 | `isRacked` | bool | Required. False to unrack, true to re-rack or keep racked |
 | `resetRackedSince` | bool | Required. Only used when this save re-racks the box: true sets `rackedSince` to today ("Reset to today" in wireframe 06f), false keeps it. Ignored otherwise |
 | `lastUpdatedAt` | string or null | Required. Exactly the `lastUpdatedAt` the app got when it loaded the box, null included (D-174) |
@@ -270,7 +270,7 @@ No body. The app goes back to the Boxes list.
 
 The server, in one transaction:
 
-- sets `deleted_at` to now and `deleted_by` from the session token, and sets `last_updated_at` and `last_updated_by` the same way, since a soft delete is a change (D-176)
+- sets `last_updated_at` the way a save does (now, or one second past its previous value if that is later, D-212) and `last_updated_by` from the session token, and sets `deleted_at` and `deleted_by` to the same values, since a soft delete is a change (D-176)
 - writes one audit entry: BOX DELETED, with the label `#6789`
 
 ### Errors

@@ -24,7 +24,7 @@ public class NewDeviceRequest {
     public string? Password { get; set; }
 }
 
-// POST /api/devices/renew (and later POST /api/master-mode)
+// POST /api/devices/renew and POST /api/master-mode
 public class MasterCredentialsRequest {
     public string? Email { get; set; }
     public string? Password { get; set; }

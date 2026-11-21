@@ -59,7 +59,7 @@ public class TokenEvents : JwtBearerEvents {
     }
 
     // The code for a token of the wrong kind for this endpoint, or null if the kind is fine.
-    // Endpoints with no policy (or none yet, like the dashboard) take either kind.
+    // Endpoints with no policy take either kind.
     public static string? CodeForWrongKind(string? requiredKind, string? tokenKind) {
         if (tokenKind != TokenClaims.DeviceKind && tokenKind != TokenClaims.SessionKind) {
             return AuthErrors.ForMissingToken(requiredKind);

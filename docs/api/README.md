@@ -62,9 +62,9 @@ These can come back from requests that carry a token (`deviceExpired` only with 
 
 | `code` | Status | What the app does |
 |---|---|---|
-| `deviceNotSetUp` | 401 | Clear the device token and open tablet setup |
+| `deviceNotSetUp` | 401 | Clear the device token and open the start page, which opens tablet setup, or first-time setup if `GET /api/setup/status` says the store isn't set up (D-213) |
 | `deviceExpired` | 401 | Open the Master sign-in screen in sign-back-in mode |
-| `deviceRemoved` | 401 | Clear both tokens and open tablet setup |
+| `deviceRemoved` | 401 | Clear both tokens and open the start page, which opens tablet setup, or first-time setup if `GET /api/setup/status` says the store isn't set up (D-213) |
 | `sessionEnded` | 401 | Clear the session token and open employee sign-in |
 
 Only add a new code when the app has to do something other than show the sentence. Add it to this table and to the contract that returns it.
@@ -73,7 +73,7 @@ Only add a new code when the app has to do something other than show the sentenc
 
 `ApiClient` turns every error into an `ApiException`:
 
-1. If the response has a `code` from the table above, handle it there and don't pass it to the screen.
+1. If the response has a `code` from the table above, handle it there (clear the tokens and open the screen), then still throw it, so the caller stops. Screens ignore an `ApiException` whose `code` is set and show nothing for it.
 2. Otherwise, use the `error` sentence as the `ApiException` message, and the screen shows it.
 3. If the response isn't JSON, or has no `error` (for example a proxy error page), or there is no response at all (no connection or a timeout), use a fixed sentence such as "Can't reach the server. Check the connection and try again."
 
