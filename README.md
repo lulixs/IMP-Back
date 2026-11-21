@@ -2,7 +2,7 @@
 
 The backend for IMP (Inventory Management Platform). It is a web API built with ASP.NET Core on .NET 10. The Flutter app ([IMP-Front](https://github.com/lulixs/IMP-Front)) calls it over HTTP and gets JSON back.
 
-**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`), box search, one box, and creating a box (`GET /api/boxes`, `GET /api/boxes/{id}`, and `POST /api/boxes`), and the category and building lists with their box counts (`GET /api/categories` and `GET /api/buildings`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts written but not built yet: saving and deleting boxes ([docs/api/boxes.md](docs/api/boxes.md)), adding, editing, and deleting categories and buildings, employee accounts, deleted items, the audit log, alerts, settings, and Signed-in Devices (all in [docs/api/](docs/api/)). The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Every entry's `details` uses the shape in the Audit details section of [docs/api/boxes.md](docs/api/boxes.md), and the sample audit rows match it. `POST /api/setup` is the first endpoint to use it.
+**Status:** early. The working endpoints are `GET /api/health`, `GET /api/health/database`, `GET /api/dashboard` (the first endpoint that reads real data), first-time setup (`GET /api/setup/status` and `POST /api/setup`), tablet setup (`POST /api/devices` and `POST /api/devices/renew`), employee sign-in and sign-out (`GET /api/employees/active`, `POST /api/sessions`, and `DELETE /api/sessions/current`), Master mode on and off (`POST /api/master-mode` and `DELETE /api/master-mode`), box search, one box, creating a box, and saving a box (`GET /api/boxes`, `GET /api/boxes/{id}`, `POST /api/boxes`, and `PUT /api/boxes/{id}`), and the category and building lists with their box counts (`GET /api/categories` and `GET /api/buildings`). The dashboard's JSON shape is in [docs/api/dashboard.md](docs/api/dashboard.md), and it takes the session token (D-164). Everything in [docs/api/auth.md](docs/api/auth.md) is built, including sign-in tokens. `[RequireMasterMode]` is built but no endpoint uses it yet (see [Endpoints that need Master mode](#endpoints-that-need-master-mode)). The MySQL database runs in Docker (see [Database setup](#database-setup)), and the API connects to it (see [Database connection](#database-connection)). Contracts written but not built yet: deleting boxes ([docs/api/boxes.md](docs/api/boxes.md)), adding, editing, and deleting categories and buildings, employee accounts, deleted items, the audit log, alerts, settings, and Signed-in Devices (all in [docs/api/](docs/api/)). The shared error format in [docs/api/README.md](docs/api/README.md) is built (see [Errors and logging](#errors-and-logging)). The audit log helper (`AuditLog.WriteAsync`) is built: it checks each action and target pair against the ERD and writes the entry inside the caller's transaction. Every entry's `details` uses the shape in the Audit details section of [docs/api/boxes.md](docs/api/boxes.md), and the sample audit rows match it. `POST /api/setup` is the first endpoint to use it.
 
 ## Who does what
 
@@ -85,7 +85,7 @@ IMP-Back/
 │   │   ├── SessionsController.cs     POST /api/sessions (sign in) and DELETE /api/sessions/current (sign out)
 │   │   ├── MasterModeController.cs   POST /api/master-mode (turn on) and DELETE /api/master-mode (turn off)
 │   │   ├── DashboardController.cs    GET /api/dashboard
-│   │   ├── BoxController.cs          GET /api/boxes (search), GET /api/boxes/{id} (one box), and POST /api/boxes (create)
+│   │   ├── BoxController.cs          GET /api/boxes (search), GET /api/boxes/{id} (one box), POST /api/boxes (create), and PUT /api/boxes/{id} (save)
 │   │   ├── CategoriesController.cs   GET /api/categories
 │   │   └── BuildingsController.cs    GET /api/buildings
 │   ├── Data/                         database access code
@@ -102,7 +102,7 @@ IMP-Back/
 │   ├── Models/                       C# classes that query results are turned into
 │   │   ├── AuditEntry.cs             one audit log entry, passed to AuditLog.WriteAsync
 │   │   ├── AuthRequests.cs           request bodies for setup, tablet setup, renew, sign-in, and Master mode
-│   │   ├── BoxRequests.cs            request bodies for the box endpoints (NewBoxRequest for POST /api/boxes)
+│   │   ├── BoxRequests.cs            request bodies for POST /api/boxes and PUT /api/boxes/{id}
 │   │   ├── EmployeeSummary.cs        one employee's id and name, for the sign-in screen and inside a box
 │   │   ├── Box.cs                    a box in the JSON shape from boxes.md, built from a BoxSummary
 │   │   ├── BoxSummary.cs             one flat row from the box query, one property per column
@@ -137,6 +137,7 @@ IMP-Back/
     ├── BoxJsonTests.cs               Box.FromRow gives the JSON shape in boxes.md (field names, dates, nulls)
     ├── BoxControllerTests.cs         GET /api/boxes/{id} and GET /api/boxes: fields, alerts, search, filters, sort (needs the database)
     ├── BoxCreateTests.cs             POST /api/boxes: every field rule, the reply, notes, and its audit entry (needs the database)
+    ├── BoxSaveTests.cs               PUT /api/boxes/{id}: 404s, the 409, rack and unrack, and each audit entry's details (needs the database)
     ├── CategoriesControllerTests.cs  GET /api/categories, including the box counts (needs the database)
     ├── BuildingsControllerTests.cs   GET /api/buildings, including the box counts (needs the database)
     ├── TestDatabase.cs               gives each database test its own employee, tablet, and cleanup
