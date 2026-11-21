@@ -279,3 +279,20 @@ The server, in one transaction:
 |---|---|---|
 | 404 | No box has this number | This box doesn't exist. |
 | 404 | The box is already soft-deleted | This box was deleted. |
+
+---
+
+## Two tablets at once
+
+Saves and deletes of the same box take turns: the second one waits until the first is finished, then sees its result.
+
+| What happens at the same moment | Result |
+|---|---|
+| Two saves | The first saves. The second gets 409, because `lastUpdatedAt` changed |
+| Two deletes | The first deletes. The second gets 404 "This box was deleted." |
+| A save, then a delete | The box is saved, then deleted |
+| A delete, then a save | The box is deleted. The save gets 404 "This box was deleted." |
+
+Reading a box never waits, and changes to different boxes never wait on each other.
+
+One case is not caught, because `lastUpdatedAt` is stored to the second (D-174). If a box is saved twice within the same second, a tablet that loaded it between those two saves has the same `lastUpdatedAt` as the second save, so its own save goes through without a 409 and overwrites the second save.

@@ -77,6 +77,14 @@ builder.Services.AddOpenApi(options => {
         ];
         return Task.CompletedTask;
     });
+
+    // PUT body's lastUpdatedAt: Swagger would fill in now, which never matches (409). Not a date, so 400 if left in
+    options.AddSchemaTransformer((schema, context, ct) => {
+        var property = context.JsonPropertyInfo;
+        if (property?.DeclaringType == typeof(Imp.Api.Models.SaveBoxRequest) && property.Name == "lastUpdatedAt")
+            schema.Example = System.Text.Json.Nodes.JsonValue.Create("copy from GET /api/boxes/{id}, or null");
+        return Task.CompletedTask;
+    });
 });
 
 builder.Services.AddCors(o => o.AddPolicy("Dev", p =>  
