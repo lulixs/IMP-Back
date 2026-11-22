@@ -6,7 +6,7 @@ The backend for IMP (Inventory Management Platform). It is a web API built with 
 
 ## Who does what
 
-Roles rotate weekly (D-143). The Server role owns `db/` and `Imp.Api/`, and the Connect role owns the app code in IMP-Front that calls this API. Who holds each role this week is on the team roadmap.
+From week 13, each person owns whole features, from the endpoint to the page (D-215). Who owns what is on the team roadmap.
 
 ## Setup (once per computer)
 
