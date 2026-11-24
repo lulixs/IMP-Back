@@ -114,16 +114,22 @@ app.Use(async (context, next) => {
 
         context.Response.StatusCode = status;
 
-        // code is left out entirely when there isn't one (docs/api/README.md)
+        // code and details are left out entirely when there aren't any (docs/api/README.md)
         if (apiError is null) {
             await context.Response.WriteAsJsonAsync(new {
                 error = "Something went wrong. Please try again later.",
                 traceId
             });
-        } else if (apiError.Code is null) {
-            await context.Response.WriteAsJsonAsync(new { error = apiError.Message });
         } else {
-            await context.Response.WriteAsJsonAsync(new { error = apiError.Message, code = apiError.Code });
+            var body = new Dictionary<string, object> { ["error"] = apiError.Message };
+            if (apiError.Code != null) {
+                body["code"] = apiError.Code;
+            }
+            if (apiError.Details != null) {
+                body["details"] = apiError.Details;
+            }
+
+            await context.Response.WriteAsJsonAsync(body);
         }
     }
 });
