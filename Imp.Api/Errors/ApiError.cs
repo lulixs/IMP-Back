@@ -3,10 +3,12 @@ namespace Imp.Api.Errors;
 public class ApiError : Exception {
     public int StatusCode { get; }
     public string? Code { get; }
+    public object? Details { get; }
 
-    public ApiError(int statusCode, string? message, string? code = null, Exception? innerException = null) : base(message, innerException) {
+    public ApiError(int statusCode, string? message, string? code = null, object? details = null, Exception? innerException = null) : base(message, innerException) {
         StatusCode = statusCode;
         Code = code;
+        Details = details;
     }
 
     // Shortcuts for the common cases: throw ApiError.NotFound("Box not found.");
@@ -14,5 +16,5 @@ public class ApiError : Exception {
     public static ApiError Unauthorized(string? message, string? code = null) => new(StatusCodes.Status401Unauthorized, message, code);
     public static ApiError Forbidden(string? message, string? code = null) => new(StatusCodes.Status403Forbidden, message, code);
     public static ApiError NotFound(string? message, string? code = null) => new(StatusCodes.Status404NotFound, message, code);
-    public static ApiError Conflict(string? message, string? code = null) => new(StatusCodes.Status409Conflict, message, code);
+    public static ApiError Conflict(string? message, string? code = null, object? details = null) => new(StatusCodes.Status409Conflict, message, code, details);
 }
